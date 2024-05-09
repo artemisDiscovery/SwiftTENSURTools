@@ -37,7 +37,7 @@ struct objectBits {
     
     init(_ n:Int, _ turnOn:[Int]? ) {
         let nbytes = Int(ceil( Double(n) / 8.0 ))
-        bits = [UInt8](repeating:0, count:n )
+        bits = [UInt8](repeating:0, count:nbytes )
 
         if turnOn != nil {
             for oidx in turnOn! {
@@ -107,7 +107,7 @@ struct LAYERS {
 
     var delta:Double
 
-    var objects:[Any]
+    public var objects:[Any]
 
     var layers:[Int]
 
@@ -117,17 +117,17 @@ struct LAYERS {
     // 
     init( _ objects:[Any], _ layers:[Int], _ delta:Double, _ axis:AXES, _ minCoord:Double ) {
         self.objects = objects
-        self.layers = layer
-        let maxLayer = layers.max()
+        self.layers = layers
+        let maxLayer = layers.max()!
         let nLayers = maxLayer + 1
         self.delta = delta      
         self.axis = axis 
         self.mincoord = minCoord 
-        self.maxcoord = minCoord + maxLayer*delta
+        self.maxcoord = minCoord + Double(maxLayer)*delta
 
         let numobj = self.objects.count
 
-        layerBits = Array(repeating:nil, count:nlayers)
+        self.layerBits = Array<objectBits?>(repeating:nil, count:nLayers)
 
         for i in 0..<numobj {
             let lidx = self.layers[i]
