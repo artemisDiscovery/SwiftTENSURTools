@@ -9,7 +9,7 @@ let computeQueue = DispatchQueue( label:"compute", attributes: .concurrent )
 let blocksQueue = DispatchQueue( label:"blocks" )
 
 
-class AtomCircle {
+public class AtomCircle {
 
     var center:Vector
     var radius:Double
@@ -225,7 +225,7 @@ def printArc( centerX , centerY, radius, color, ustartX, ustartY, uendX, uendY, 
 
 """
 
-func printPython( _ circles:[AtomCircle], _ arcs:[exposedArc]) -> String {
+public func printPython( _ circles:[AtomCircle], _ arcs:[exposedArc]) -> String {
     // print out text to copy into python session 
     //
     // Show removed circles in yellow, retained circles in red, retained singleton in black,
@@ -315,7 +315,7 @@ func printPython( _ circles:[AtomCircle], _ arcs:[exposedArc]) -> String {
 }
 
 
-struct Contour {
+public struct Contour {
 
     var axis:AXES
     var arcsInOrder = [exposedArc]() 
@@ -683,7 +683,7 @@ class exposedArc {
 
 // find intersection between circles, update exposed arcs and/or remove buried circle
 
-func intersectAtomCircles(_ circleA: AtomCircle, _ circleB: AtomCircle) {
+public func intersectAtomCircles(_ circleA: AtomCircle, _ circleB: AtomCircle) {
 
     if circleA.removed && circleB.removed {
         return
@@ -746,7 +746,7 @@ func intersectAtomCircles(_ circleA: AtomCircle, _ circleB: AtomCircle) {
 
 
 
-func circlesForAtoms( atompos:Matrix<Double>, radii:[Double], proberad:Double,
+public func circlesForAtoms( atompos:Matrix<Double>, radii:[Double], proberad:Double,
        axis:AXES, minCoord:Double, delta:Double, limits:[Int], thread:Int ) 
         -> ([(AtomCircle,Int)],Int)   {
         
@@ -793,7 +793,7 @@ func addBLOCK( _ BLOCKS: inout [[(AtomCircle,Int)]?], _ data:([(AtomCircle,Int)]
     BLOCKS[data.1] = data.0
 }
 
-func atomCirclesForLayers( atompos:Matrix<Double>, radii:[Double], 
+public func atomCirclesForLayers( atompos:Matrix<Double>, radii:[Double], 
     proberad:Double, minaxiscoord:Double, layerdelta:Double, axis:AXES, numthreads:Int=1 ) -> LAYERS {
 
     
@@ -927,7 +927,7 @@ func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int]) -> ([[
 }
 
 
-func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Double, numthreads:Int=1, skipCCWContours:Bool=false ) -> ([[Contour]],[Probe]) {
+public func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Double, numthreads:Int=1, skipCCWContours:Bool=false ) -> ([[Contour]],[Probe]) {
 
     // set limits using fraction of total number of circles
 
@@ -1108,7 +1108,7 @@ func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Double, nu
 
 }
 
-class Probe {
+public class Probe {
     var center:Vector
     var proberadius:Double
     var atoms:[Int]
@@ -1125,7 +1125,7 @@ class Probe {
     }
 }
 
-func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:Double=0.5 ) -> [Probe] {
+public func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:Double=0.5 ) -> [Probe] {
 
     let RIGHT = axisRIGHT[contour.axis.rawValue]
     let UP = axisUP[contour.axis.rawValue]
@@ -1225,7 +1225,7 @@ func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:Double=
 
 // returns probes for all axes, and levels for X, Y and Z
 
-func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRadius:Double, levelspacing:Double, minoverlap:Double, numthreads:Int,
+public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRadius:Double, levelspacing:Double, minoverlap:Double, numthreads:Int,
         skipCCWContours:Bool ) 
         -> ([Probe],[[Double]]) {
 
@@ -1303,7 +1303,7 @@ func indexFromIndices( _ indices:[Int],  shape:[Int], strides:[Int] )  -> Int {
 // This returns for argument probe position a list of density values and 
 // offsets in the original grid storage
 
-func densityForProbe( probe:Probe, radius:Double, delta:Double, epsilon:Double, 
+public func densityForProbe( probe:Probe, radius:Double, delta:Double, epsilon:Double, 
     griddeltas:[Double], limits:[[Double]], gridShape:[Int], gridStrides:[Int] ) -> ([Double], [Int]) {
 
         let gradii = griddeltas .map { Int(radius/$0) + 1 }
@@ -1407,7 +1407,7 @@ func densityForProbe( probe:Probe, radius:Double, delta:Double, epsilon:Double,
     }
 
 
-func generateTriangulation( probes:[Probe], probeRadius:Double, gridspacing:Double, 
+public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspacing:Double, 
         densityDelta:Double, densityEpsilon:Double, isoLevel:Double, numthreads:Int) 
             throws {
            // -> throws ([[Double]], [[Int]])  {
