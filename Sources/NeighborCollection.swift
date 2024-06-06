@@ -25,7 +25,7 @@ import MathTools
 //               
 
 
-struct objectBits {
+public struct objectBits {
 
     enum objectBitError: Error {
     case sizeError
@@ -92,14 +92,14 @@ struct objectBits {
 }
 
 
-enum AXES:Int {
+public enum AXES:Int {
     case X = 0
     case Y = 1
     case Z = 2
 }
 
 
-struct LAYERS {
+public struct LAYERS {
     var axis:AXES
 
     var mincoord:Double

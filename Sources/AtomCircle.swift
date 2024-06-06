@@ -519,7 +519,7 @@ let axisRIGHT = [1, 2, 0]
 let axisUP    = [2, 0, 1]
 
 
-class exposedArc {
+public class exposedArc {
 
     // pstart, pend points to define
 
@@ -860,7 +860,7 @@ public func atomCirclesForLayers( atompos:Matrix<Double>, radii:[Double],
     return circleLAYERS
 }
 
-func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int]) -> ([[AtomCircle]],[Int])? {
+public func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int]) -> ([[AtomCircle]],[Int])? {
 
     let layerBits = circleLayers.layerBits
 
@@ -1281,7 +1281,7 @@ public enum TriangulationError: Error {
     
 }
 
-func indexFromIndices( _ indices:[Int],  shape:[Int], strides:[Int] )  -> Int {
+public func indexFromIndices( _ indices:[Int],  shape:[Int], strides:[Int] )  -> Int {
     
     if indices.count != shape.count {
         return -1 
