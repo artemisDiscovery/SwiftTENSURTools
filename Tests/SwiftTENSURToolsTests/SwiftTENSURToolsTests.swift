@@ -22,16 +22,18 @@ func readCoordinates( _ lines:[String], _ index : inout Int ) throws -> [Vector]
             let tokens = lines[index].split(separator: "\t") 
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines)}
             //print("tokens : \(tokens)")
-            do {
-                let x = try Double(tokens[0])
-                let y = try Double(tokens[1])
-                let z = try Double(tokens[2])
-                let coord = Vector([x!,y!,z!])
-                coords.append(coord)
-            }
-            catch {
+            
+            let x = try Double(tokens[0])
+            let y = try Double(tokens[1])
+            let z = try Double(tokens[2])
+
+            if x == nil || y == nil || z == nil {
                 throw tensurError.parseError
             }
+
+            let coord = Vector([x!,y!,z!])
+            coords.append(coord)
+            
             
         }
     
@@ -448,13 +450,21 @@ final class SwiftTENSURToolsTests: XCTestCase {
 
         let atompos = Matrix<Double>([coordinates.count,3], content:atomcoords )
 
+        let maxrad = radii.max()!
+
+        let xcoords = coordinates.map { $0.coords[0] }
+        let minX = xcoords.min()!
+
         let mincoord = levels.min()!
+
+        print("min layer coord this data = \(mincoord)")
+        print("min X-coord = \(minX), max rad = \(maxrad), min X-coord - maxrad - probeRad = \(minX - maxrad - probeRad)")
 
         let circleLayers = atomCirclesForLayers( atompos:atompos, radii:radii, 
             proberad:probeRad, minaxiscoord:mincoord, layerdelta:0.5, axis:AXES.X, numthreads:1 )
             
         // Get all atom circles with X 
-
+        /*
         var atomcircles = circleLayers.objects as! [AtomCircle]
 
         let X = 26.5
@@ -463,32 +473,56 @@ final class SwiftTENSURToolsTests: XCTestCase {
         
         print("have \(layercircles.count) circles for layer at \(X)")
 
-        //print("layer circle data ---")
 
-        //for circle in layercircles {
-        //    print(circle.str())
-        //}
+        print("layer circle data ---")
+
+        for circle in layercircles {
+            print(circle.str())
+        }
 
         for i in 0..<(layercircles.count-1) {
             for j in (i+1)..<layercircles.count {
-                //print("\n\nintersect \(i) and \(j)\n")
-                //print("prior intersect, arcs \(i)---")
-                //for arc in layercircles[i].exposure {
-                //    print(arc.str())
+                //let d = layercircles[i].center.sub(layercircles[j].center).length()
+                //if d > layercircles[i].radius + layercircles[j].radius {
+                //    continue
                 //}
-                //print("prior intersect, arcs \(j)---")
-                //for arc in layercircles[j].exposure {
-                //    print(arc.str())
-                //}
+                
+                    //print("\n\nintersect \(i) and \(j)\n")
+                    //print("prior intersect, arcs \(i)---")
+                    //for arc in layercircles[i].exposure {
+                    //    print(arc.str())
+                    //}
+                    //print("prior intersect, arcs \(j)---")
+                    //for arc in layercircles[j].exposure {
+                    //    print(arc.str())
+                    //}
+                
+                
                 intersectAtomCircles(layercircles[i],layercircles[j])
-                //print("\nafter intersect, arcs \(i)---")
-                //for arc in layercircles[i].exposure {
-                //    print(arc.str())
-                //}
-                //print("after intersect, arcs \(j)---")
-                //for arc in layercircles[j].exposure {
-                //    print(arc.str())
-                //}
+                
+                    //print("after intersect, arcs \(i)---")
+                    //for arc in layercircles[i].exposure {
+                    //    print(arc.str())
+                    //}
+                    //print("after intersect, arcs \(j)---")
+                    //for arc in layercircles[j].exposure {
+                    //    print(arc.str())
+                    //}
+                
+            }
+        }
+
+        // look for singleton circle
+
+        let UP = axisUP[AXES.X.rawValue]
+        let RIGHT = axisRIGHT[AXES.X.rawValue]
+
+        print("singleton circle")
+
+        for circle in layercircles {
+            if circle.center.coords[UP] > 5.0 && circle.center.coords[RIGHT] < 18.0 {
+                print(circle.str())
+                print("exposure: \(circle.exposure.count)")
             }
         }
 
@@ -498,18 +532,26 @@ final class SwiftTENSURToolsTests: XCTestCase {
             contour = try Contour(layercircles)
         }
         catch {
-            print("exception in Contour")
+            print("exception in Contour first round")
         }
 
         if contour != nil {
+            print("CONTOUR, first round ----- ")
             print(contour!.str(verbose:true))
         }
         else {
-            print("contour failed")
+            print("contour failed first round")
         }
 
-        // check for removed arcs 
+        print("\ncontour python ...\n")
 
+        //let text = printPython( layercircles, contour!.arcsInOrder)
+
+        //print(text)
+
+        // check for removed arcs - OK working now
+
+        
         print("removed circles/arcs ---")
 
         for circle in layercircles {
@@ -522,10 +564,12 @@ final class SwiftTENSURToolsTests: XCTestCase {
             }
             for arc in circle.exposure {
                 if arc.removed {
+                    print("removed arc")
                     print(arc.str())
                 }
             }
         }
+       
 
         // print all arcs 
 
@@ -540,7 +584,6 @@ final class SwiftTENSURToolsTests: XCTestCase {
         //    }
         //}
         
-        /*
         
 
         //var axis:AXES
@@ -592,9 +635,38 @@ final class SwiftTENSURToolsTests: XCTestCase {
             
         }
 
-        
-        intersectingCirclesForLayers(circleLayers, numthreads:10)
         */
+        let surfdata = generateSurfaceProbes( coordinates:coordinates, radii:radii, probeRadius:probeRad, levelspacing:0.5, minoverlap:0.5, numthreads:10,
+                         skipCCWContours:true )
+
+        let probes = surfdata.0 
+
+        var str = ""
+        
+
+        for probe in probes {
+            if !probe.singleton {
+                str += "\(probe.center.coords[0]) \(probe.center.coords[1]) \(probe.center.coords[2]) \(probeRad) 1.0 1.0 1.0\n"
+            }
+            else {
+                str += "\(probe.center.coords[0]) \(probe.center.coords[1]) \(probe.center.coords[2]) \(probeRad) 1.0 0.0 0.0\n"
+            }
+        }
+
+        do {
+            try str.write(to: URL(fileURLWithPath:"probes.txt"), atomically: true, encoding: String.Encoding.utf8)
+        } catch {
+            print("could not write probes file !")
+        }
+        
+        do {
+            try generateTriangulation( probes:probes, probeRadius:probeRad, gridspacing:0.25, 
+            densityDelta:0.1, densityEpsilon:0.1, isoLevel:1.0, numthreads:10) 
+        }
+        catch {
+            print("triangulation code failed !")
+        }
+        
     }
     
    

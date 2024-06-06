@@ -1,6 +1,7 @@
 
 import Foundation
 import MathTools
+//import SwiftMC33Lib
 
 import Dispatch
 
@@ -37,7 +38,7 @@ class AtomCircle {
     func updateExposure( _ pstart:Vector, _ pend:Vector, _ othercircle: AtomCircle) {
 
 
-        var newarc = exposedArc(pstart, pend, othercircle, othercircle, self )
+        let newarc = exposedArc(pstart, pend, othercircle, othercircle, self )
         
         //print("updating exposure for atom \(atom)")
         //print("current count = \(exposure.count), newarc =  ")
@@ -81,9 +82,9 @@ class AtomCircle {
             if AendInB {
                 // check for Astart, Aend in clockwise order in B
                 if !B.clockwiseOrder(A.ustart, A.uend) {
-                    var arc0 = exposedArc(B.pstart, A.pend, B.atomcircleStart, A.atomcircleEnd, self)
+                    let arc0 = exposedArc(B.pstart, A.pend, B.atomcircleStart, A.atomcircleEnd, self)
                     //arc0.setEndCircle(A.atomcircleEnd)
-                    var arc1 = exposedArc(A.pstart, B.pend, A.atomcircleStart, B.atomcircleEnd, self)
+                    let arc1 = exposedArc(A.pstart, B.pend, A.atomcircleStart, B.atomcircleEnd, self)
                     //arc1.setEndCircle(B.atomcircleEnd)
 
                     returnArcs.append( arc0 )
@@ -97,7 +98,7 @@ class AtomCircle {
             }
             else {
                 // Astart in B and Aend NOT in B
-                var arc0 = exposedArc(A.pstart, B.pend, A.atomcircleStart, B.atomcircleEnd, self)
+                let arc0 = exposedArc(A.pstart, B.pend, A.atomcircleStart, B.atomcircleEnd, self)
                 //arc0.setEndCircle(B.atomcircleEnd)
                 returnArcs.append( arc0 )
                 
@@ -106,7 +107,7 @@ class AtomCircle {
         }
         else if AendInB {
             // Astart NOT in B, Aend in B
-            var arc0 = exposedArc(B.pstart, A.pend, B.atomcircleStart, A.atomcircleEnd, self)
+            let arc0 = exposedArc(B.pstart, A.pend, B.atomcircleStart, A.atomcircleEnd, self)
             //arc0.setEndCircle(A.atomcircleEnd)
             returnArcs.append( arc0 )
             
@@ -120,9 +121,9 @@ class AtomCircle {
             if BendInA {
                 // check clockwise order Bstart, Bend
                 if !A.clockwiseOrder( B.ustart, B.uend ) {
-                    var arc0 = exposedArc(A.pstart, B.pend, A.atomcircleStart, B.atomcircleEnd, self)
+                    let arc0 = exposedArc(A.pstart, B.pend, A.atomcircleStart, B.atomcircleEnd, self)
                     //arc0.setEndCircle(B.atomcircleEnd)
-                    var arc1 = exposedArc(B.pstart, A.pend, B.atomcircleStart, A.atomcircleEnd, self)
+                    let arc1 = exposedArc(B.pstart, A.pend, B.atomcircleStart, A.atomcircleEnd, self)
                     //arc1.setEndCircle(A.atomcircleEnd)
                     returnArcs.append( arc0 )
                     returnArcs.append( arc1 )
@@ -135,15 +136,16 @@ class AtomCircle {
             }
             else {
                 // Bstart in A and Bend NOT in A
-                var arc0 = exposedArc(B.pstart, A.pend, B.atomcircleStart, A.atomcircleEnd, self)
+                let arc0 = exposedArc(B.pstart, A.pend, B.atomcircleStart, A.atomcircleEnd, self)
                 //arc0.setEndCircle(A.atomcircleEnd)
                 returnArcs.append( arc0 )
+
                 return returnArcs
             }
         }
         else if BendInA {
             // Bstart NOT in A, Bend in A
-            var arc0 = exposedArc(A.pstart, B.pend, A.atomcircleStart, B.atomcircleEnd, self)
+            let arc0 = exposedArc(A.pstart, B.pend, A.atomcircleStart, B.atomcircleEnd, self)
             //arc0.setEndCircle(B.atomcircleEnd)
             returnArcs.append( arc0 )
             return returnArcs 
@@ -181,8 +183,135 @@ class AtomCircle {
 public enum ContourError: Error {
     case missingCircleError
     case missingArcError
+    case noInitialArc
     
     
+}
+
+let printArc = 
+"""
+def printArc( centerX , centerY, radius, color, ustartX, ustartY, uendX, uendY, ax, num=10 ) :
+    # clockwise arc, but angles handle CCW, make uend the 'start' of the drawn arc
+    center = np.array([centerX,centerY])
+    ref = np.array([uendX,uendY])
+    perp = np.array([0.0,0.0])
+    perp[0] = -ref[1]
+    perp[1] = ref[0]
+    ustart = np.array([ustartX,ustartY])
+    # frame coords of ustart
+    ustart_ref = np.dot(ustart,ref) 
+    ustart_perp = np.dot(ustart,perp)
+    #
+    angle = math.atan2( ustart_perp, ustart_ref )
+    if angle < 0. : angle += 2.*math.pi
+    delta = angle / num 
+    #
+    X = []
+    Y = []
+    #
+    for i in range(num) :
+        astart = i * delta
+        aend = astart + delta 
+        pstart = center + radius*math.cos(astart)*ref + radius*math.sin(astart)*perp
+        pend = center + radius*math.cos(aend)*ref + radius*math.sin(aend)*perp
+        if i == 0 :
+            ax.plot([pstart[0],pend[0]],[pstart[1],pend[1]],color='magenta')
+            continue
+        X.append(pstart[0])
+        X.append(pend[0])
+        Y.append(pstart[1])
+        Y.append(pend[1])
+    ax.plot(X,Y,color=color)
+
+"""
+
+func printPython( _ circles:[AtomCircle], _ arcs:[exposedArc]) -> String {
+    // print out text to copy into python session 
+    //
+    // Show removed circles in yellow, retained circles in red, retained singleton in black,
+    // contour arcs in blue, non-contour arcs in green
+
+    var text = "import matplotlib.pyplot as plt\nplt.ion()\nimport numpy as np\nimport math\n"
+    text += printArc
+    text += "\n"
+
+    // get overall dimensions 
+
+    let axis = circles[0].axis
+    let RIGHT = axisRIGHT[axis.rawValue]
+    let UP = axisUP[axis.rawValue]
+
+    // use  RIGHT and UP as 'x' and 'y' 
+
+    var xmin = circles .map { $0.center.coords[RIGHT] - $0.radius } .min()!
+    xmin -= 1.0
+    var xmax = circles .map { $0.center.coords[RIGHT] + $0.radius } .max()!
+    xmax += 1.0
+    var ymin = circles .map { $0.center.coords[UP] - $0.radius } .min()!
+    ymin -= 1.0
+    var ymax = circles .map { $0.center.coords[UP] + $0.radius } .max()!
+    ymax += 1.0
+
+    let deltaX = xmax - xmin 
+    let deltaY = ymax - ymin 
+    let xmid = (xmax + xmin)/2.0
+    let ymid = (ymax + ymin)/2.0
+
+    var XMIN = 0.0
+    var XMAX = 0.0
+    var YMIN = 0.0
+    var YMAX = 0.0 
+
+    if deltaX > deltaY {
+        XMIN = xmin
+        XMAX = xmax 
+        YMIN = ymid - (deltaX/2.0)
+        YMAX = ymid + (deltaX/2.0)
+    }
+    else {
+        YMIN = ymin
+        YMAX = ymax 
+        XMIN = xmid - (deltaY/2.0)
+        XMAX = xmid + (deltaY/2.0)
+    }
+
+    text += "fig, ax = plt.subplots()\n"
+    text += "ax.set_xlim(\(XMIN), \(XMAX))\n"
+    text += "ax.set_ylim(\(YMIN), \(YMAX))\n"
+    text += "ax.set_aspect('equal')\n"
+
+    var color = ""
+
+    for circle in circles {
+        if circle.removed {
+            color = "yellow"
+        }
+        else if circle.exposure.count == 0 {
+            color = "black"
+        }
+        else {
+            color = "red"
+        }
+
+        text += "p = plt.Circle((\(circle.center.coords[RIGHT]),\(circle.center.coords[UP])), \(circle.radius), color='\(color)', fill=False)\n"
+        text += "ax.add_patch(p)\n"
+
+        if !circle.removed {
+            for arc in circle.exposure {
+            text += "printArc( \(circle.center.coords[RIGHT]) , \(circle.center.coords[UP]), \(circle.radius), 'green', \(arc.ustart.coords[RIGHT]), \(arc.ustart.coords[UP]), \(arc.uend.coords[RIGHT]), \(arc.uend.coords[UP]), ax, num=10 )\n"
+            }
+        }
+        
+    }
+
+
+    for arc in arcs {
+        let circle = arc.parentcircle
+        text += "printArc( \(circle.center.coords[RIGHT]) , \(circle.center.coords[UP]), \(circle.radius), 'blue', \(arc.ustart.coords[RIGHT]), \(arc.ustart.coords[UP]), \(arc.uend.coords[RIGHT]), \(arc.uend.coords[UP]), ax, num=10 )\n"
+    }
+
+    return text
+
 }
 
 
@@ -191,33 +320,43 @@ struct Contour {
     var axis:AXES
     var arcsInOrder = [exposedArc]() 
     var singletons = [AtomCircle]()
+    var circles = [AtomCircle]()
     var clockwise:Bool
 
     public init(_ circles: [AtomCircle]) throws  {
+
+        self.circles = circles
         // assume all have the same axis
         axis = circles[0].axis 
 
         var initialArc:exposedArc? = nil 
-        var initialCircle:AtomCircle? = nil 
+        
 
-        for cidx in 0..<circles.count {
-            var circle = circles[cidx]
+        for circle in circles {
             if circle.removed {
-                continue 
+                continue
             }
 
             if circle.exposure.count == 0 {
                 singletons.append(circle)
                 circle.setRemoved(true)
-                continue
             }
+        }
+
+        for cidx in 0..<circles.count {
+            let circle = circles[cidx]
+                    
+            if circle.removed {
+                continue 
+            }
+
 
             for arc in circle.exposure {
                 if arc.removed {
                     continue
                 }
                 initialArc = arc 
-                initialCircle = circle
+                
                 break
             }
 
@@ -228,13 +367,14 @@ struct Contour {
         }
 
         if initialArc == nil {
-            print("contour: no initial arc")
-            throw ContourError.missingArcError
+            //print("contour: no initial arc")
+            // this is actuall OK, return nil?
+            throw ContourError.noInitialArc
         }
 
 
         var currentArc = initialArc!
-        var currentCircle = initialCircle!
+        
 
         //print("initial circle: ")
         //print(initialCircle!.str())
@@ -247,14 +387,14 @@ struct Contour {
         var accumAngle = 0.0
         var prevdisp:Vector? = nil
 
-        //while !closed {
-        for _ in 0..<10000 {
+        while !closed {
+        //for _ in 0..<10000 {
             //print("contour: current arc :")
             //print(currentArc.str())
             let nextCircle = currentArc.atomcircleEnd
             
             if nextCircle.removed {
-                print("contour: circle removed")
+                print("contour: expected circle removed")
                 //print("current circle :")
                 //print(currentArc.parentcircle.str())
                 //print("current arc :")
@@ -294,7 +434,7 @@ struct Contour {
 
             if bestArc!.pend == initialArc!.pstart {
                 closed = true
-                break
+                //break
             }
 
 
@@ -315,9 +455,12 @@ struct Contour {
         }
 
         // assume closed here
+        clockwise = true 
 
-
-        clockwise = accumAngle > 0.0
+        if arcsInOrder.count > 2 {
+            clockwise = accumAngle > 0.0
+        }
+        
 
         for aidx in 0..<self.arcsInOrder.count {
             arcsInOrder[aidx].setRemoved(true)
@@ -376,7 +519,7 @@ let axisRIGHT = [1, 2, 0]
 let axisUP    = [2, 0, 1]
 
 
-struct exposedArc {
+class exposedArc {
 
     // pstart, pend points to define
 
@@ -393,7 +536,7 @@ struct exposedArc {
     var parentcircle:AtomCircle
     
 
-    // intersections with 
+    // intersections labeled by intersecting circle  
     var atomcircleStart:AtomCircle
     var atomcircleEnd:AtomCircle
 
@@ -444,11 +587,11 @@ struct exposedArc {
 
     }
 
-    mutating func setEndCircle( _ end: AtomCircle) {
+    func setEndCircle( _ end: AtomCircle) {
         self.atomcircleEnd = end
     }
 
-    mutating func setRemoved(_ state:Bool) {
+    func setRemoved(_ state:Bool) {
         self.removed = state 
     }
 
@@ -542,7 +685,7 @@ struct exposedArc {
 
 func intersectAtomCircles(_ circleA: AtomCircle, _ circleB: AtomCircle) {
 
-    if circleA.removed || circleB.removed {
+    if circleA.removed && circleB.removed {
         return
     }
 
@@ -656,8 +799,8 @@ func atomCirclesForLayers( atompos:Matrix<Double>, radii:[Double],
     
     let shape = atompos.getShape()
     let numatoms = shape[0]
-    let storage = atompos.getStorage()
-    let axiscoords = (0..<numatoms) .map { storage[3*$0 + axis.rawValue] }
+    
+    
 
 
     var LIMITS = [[Int]]()
@@ -721,7 +864,7 @@ func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int]) -> ([[
 
     let layerBits = circleLayers.layerBits
 
-    var allcircles = circleLayers.objects as! [AtomCircle]
+    let allcircles = circleLayers.objects as! [AtomCircle]
 
     var returnCircles = [[AtomCircle]]()
     var returnLayerIndices = [Int]()
@@ -731,7 +874,7 @@ func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int]) -> ([[
             continue
         }
 
-        var layercircles = layerBits[lidx]!.indices() .map { allcircles[$0] }
+        let layercircles = layerBits[lidx]!.indices() .map { allcircles[$0] }
 
         if layercircles.count == 1 {
             returnCircles.append(layercircles)
@@ -753,7 +896,7 @@ func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int]) -> ([[
         var pairs:[[Int]]?
 
         do {
-            var dists = try cdist(circleCenters,circleCenters)
+            let dists = try cdist(circleCenters,circleCenters)
             try dists.setdiagonal(1.0e12)
             let sumRadii = try circleRadii.addTranspose(circleRadii)
 
@@ -783,7 +926,8 @@ func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int]) -> ([[
 
 }
 
-func intersectingCirclesForLayers( _ circleLayers:LAYERS, numthreads:Int=1 ) {
+
+func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Double, numthreads:Int=1, skipCCWContours:Bool=false ) -> ([[Contour]],[Probe]) {
 
     // set limits using fraction of total number of circles
 
@@ -842,7 +986,7 @@ func intersectingCirclesForLayers( _ circleLayers:LAYERS, numthreads:Int=1 ) {
     var cumcount = 0 
 
     for lim in LIMITS {
-        print("limit \(lim)")
+        //print("limit \(lim)")
         var ccount = 0 
         for lidx in lim[0]..<lim[1] {
             if layerBits[lidx] == nil {
@@ -850,11 +994,11 @@ func intersectingCirclesForLayers( _ circleLayers:LAYERS, numthreads:Int=1 ) {
             }
             ccount += layerBits[lidx]!.indices().count
         }
-        print("\tcount for range = \(ccount)")
+        //print("\tcount for range = \(ccount)")
         cumcount += ccount
     }
 
-    print("\ncumulative count = \(cumcount), compare to \(atomcircles.count) circles expected")
+    //print("\ncumulative count = \(cumcount), compare to \(atomcircles.count) circles expected")
 
     var BLOCKS = [([[AtomCircle]],[Int])]()
 
@@ -891,23 +1035,28 @@ func intersectingCirclesForLayers( _ circleLayers:LAYERS, numthreads:Int=1 ) {
         sortedCircles += block.0
     }
 
-    for lidx in 0..<sortedLayers.count {
-        print("sorted layer \(sortedLayers[lidx]), \(sortedCircles[lidx].count) circles")
-        
-    }
+    //for lidx in 0..<sortedLayers.count {
+    //    print("sorted layer \(sortedLayers[lidx]), \(sortedCircles[lidx].count) circles")
+    //    
+    //}
 
     var contoursForLevels = [[Contour]]()
 
+    var probes = [Probe]()
+
     for lidx in 0..<sortedLayers.count {
         var contours = [Contour]()
-        print("layer \(lidx) contours ...")
-        for j in 0..<2 {
+        //print("layer \(lidx) contours ...")
+        while true {
             var cont:Contour?
             do {
                 cont = try Contour(sortedCircles[lidx])
             }
             catch {
-                print("exception in Contour")
+                if (error as! ContourError) == ContourError.noInitialArc {
+                    break
+                }
+                print("exception in Contour : \(error)")
                 break
             }
             
@@ -918,17 +1067,469 @@ func intersectingCirclesForLayers( _ circleLayers:LAYERS, numthreads:Int=1 ) {
             if cont!.singletons.count == 0 && cont!.arcsInOrder.count == 0 {
                 break
             }
+            
+
+            if skipCCWContours && !cont!.clockwise {
+                continue
+            }
+
             contours.append(cont!)
+            probes += probesForContour(cont!, probeRadius:probeRadius)
 
         }
+
         contoursForLevels.append(contours)
-        print("layer \(lidx) \(contours.count) contours ...")
+        //print("layer \(lidx) \(contours.count) contours ...")
+        var nclock = 0
+        var ncounterclock = 0
+        for contour in contours {
+            if contour.clockwise {
+                nclock += 1
+
+            }
+            else {
+                ncounterclock += 1
+            }
+        }
+        //print("\t\(nclock) clockwise, \(ncounterclock) counterclockwise")
         //for cont in contours {
         //    print(cont.str())
         //}
     }
 
-    
+    //let plidx = 23
+    //print("contour \(plidx) ")
+
+    //print(printPython(contoursForLevels[plidx][1].circles,contoursForLevels[plidx][1].arcsInOrder ))
+
+    print("\nfound \(probes.count) probes")
+
+    return (contoursForLevels,probes)
+
+}
+
+class Probe {
+    var center:Vector
+    var proberadius:Double
+    var atoms:[Int]
+    var singleton:Bool
+    var clockwisecontour:Bool
+
+    init(center:Vector, radius:Double, atoms:[Int], singleton:Bool, clockwise:Bool) {
+
+        self.center = center 
+        self.proberadius = radius
+        self.atoms = atoms
+        self.singleton = singleton
+        self.clockwisecontour = clockwise
+    }
+}
+
+func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:Double=0.5 ) -> [Probe] {
+
+    let RIGHT = axisRIGHT[contour.axis.rawValue]
+    let UP = axisUP[contour.axis.rawValue]
+
+    let minsep = probeRadius - (minOverlap * probeRadius)
+
+
+    var probes = [Probe]()
+
+    for arc in contour.arcsInOrder {
+
+        let atomC = arc.parentcircle.atom
+        let atomS = arc.atomcircleStart.atom 
+        
+        let ref = arc.uend 
+        var perp = Vector([0.0,0.0,0.0])
+
+        perp.coords[RIGHT] = -ref.coords[UP]
+        perp.coords[UP] = ref.coords[RIGHT]
+
+        let x = arc.ustart.dot(ref)
+        let y = arc.ustart.dot(perp)
+        
+        var angle = atan2(y, x)
+
+        if angle < 0.0 {
+            angle += 2.0 * acos(-1.0)
+        }
+
+        let radius = arc.parentcircle.radius
+
+        var num = max(Int(ceil((angle*radius)/minsep)),2)
+
+        if (minsep/2.0) < radius {
+            let mindelta = 2.0 * asin((minsep/2.0)/radius)
+
+            num = max( Int(ceil(angle/mindelta)), 2)
+        }
+        
+
+        let delta = angle/Double(num)
+
+        
+
+        // go to one position less than end, avoid duplicate probes 
+
+        for j in 0..<num {
+            var atoms = [atomC]
+            let ang = angle - Double(j)*delta
+
+            if j == 0 {
+                atoms.append(atomS)
+            }
+            
+            let pos = arc.parentcircle.center + (radius*cos(ang))*ref + (radius*sin(ang))*perp
+
+            probes.append(Probe(center:pos, radius:probeRadius, atoms:atoms, singleton:false, clockwise:contour.clockwise))
+
+
+        }
+    }
+
+    for circle in contour.singletons {
+
+        let atoms = [circle.atom]
+        let radius = circle.radius
+        let num = max( Int((2.0*acos(-1.0))/minsep), 4 )
+        let delta = (2.0*acos(-1.0))/Double(num)
+
+        var ref = Vector([0.0,0.0,0.0])
+
+        ref.coords[RIGHT] = 1.0 
+
+        var perp = Vector([0.0,0.0,0.0])
+
+        perp.coords[UP] = 1.0 
+
+        // start at 2*PI - delta, go all way to zero
+
+        let startang = 2.0*acos(-1.0) - delta
+
+        for j in 0..<(num+1) {
+            let ang = startang - Double(j)*delta
+            let pos = circle.center + (radius*cos(ang))*ref + (radius*sin(ang))*perp
+            probes.append(Probe(center:pos, radius:probeRadius, atoms:atoms, singleton:true, clockwise:true))
+        }
+
+        
+
+    }
+
+
+    return probes 
 
 
 }
+
+// returns probes for all axes, and levels for X, Y and Z
+
+func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRadius:Double, levelspacing:Double, minoverlap:Double, numthreads:Int,
+        skipCCWContours:Bool ) 
+        -> ([Probe],[[Double]]) {
+
+
+    let radiiVec = Vector(radii)
+
+    var atomcoords = [Double]() 
+
+    for vec in coordinates {
+        atomcoords += vec.coords 
+    }
+
+    let atompos = Matrix<Double>([coordinates.count,3], content:atomcoords )
+
+    var probes = [Probe]()
+    var layers = [[Double]]()
+
+    for axis in [ AXES.X, AXES.Y, AXES.Z ] {
+
+        print("Axis : \(axis.rawValue)")
+
+        let axiscoords = Vector( coordinates .map { $0.coords[axis.rawValue] } )
+        let lowermin = axiscoords - radiiVec
+        let lowlim = lowermin.coords.min()! - probeRadius 
+
+        var minaxiscoord = ceil(abs(lowlim)/levelspacing) * levelspacing 
+
+        if lowlim < 0 {
+            minaxiscoord = -minaxiscoord
+        }
+
+        let atomcircleLAYERS = atomCirclesForLayers( atompos:atompos, radii:radii, 
+                proberad:probeRadius, minaxiscoord:minaxiscoord, layerdelta:levelspacing, axis:axis, numthreads:numthreads )
+        
+        let probedata = intersectingCirclesForLayers(atomcircleLAYERS, probeRadius:probeRadius, numthreads:numthreads, skipCCWContours:skipCCWContours )
+
+        let axisprobes = probedata.1
+
+        probes += axisprobes
+
+        layers.append([atomcircleLAYERS.mincoord, atomcircleLAYERS.maxcoord])
+
+
+
+    }
+
+    return (probes,layers)
+}
+
+public enum TriangulationError: Error {
+    case gridProbeDistanceError
+    case densityError
+    
+}
+
+func indexFromIndices( _ indices:[Int],  shape:[Int], strides:[Int] )  -> Int {
+    
+    if indices.count != shape.count {
+        return -1 
+    }
+
+    var index = 0 
+
+    for (sidx,idx) in indices.enumerated() {
+        if idx < 0 || idx >= shape[sidx] {
+            return -1
+        }
+
+        index += strides[sidx] * idx
+    }
+
+    return index 
+}
+
+// This returns for argument probe position a list of density values and 
+// offsets in the original grid storage
+
+func densityForProbe( probe:Probe, radius:Double, delta:Double, epsilon:Double, 
+    griddeltas:[Double], limits:[[Double]], gridShape:[Int], gridStrides:[Int] ) -> ([Double], [Int]) {
+
+        let gradii = griddeltas .map { Int(radius/$0) + 1 }
+
+        let center = probe.center
+
+        let gcenter = (0..<3) .map { Int((center.coords[$0] - limits[$0][0])/griddeltas[$0]) }
+
+        let gmin = (0..<3) .map { max(gcenter[$0] - gradii[$0], 0) }
+        let gmax = (0..<3) .map { min(gcenter[$0] + gradii[$0], gridShape[$0]) }
+
+        for k in 0..<3 {
+            if gmax[k] < gmin[k] {
+                return ([Double](),[Int]())
+            }
+        }
+
+        let num = (0..<3) .map { gmax[$0] - gmin[$0] + 1 }
+
+        var probeLinearCoords = [Double]()
+
+        var globalIndices = [Int]() 
+
+        for iz in gmin[2]...gmax[2] {
+            let z = limits[2][0] + Double(iz)*griddeltas[2]
+            
+            for iy in gmin[1]...gmax[1] {
+                let y = limits[1][0] + Double(iy)*griddeltas[1]
+                
+                for ix in gmin[0]...gmax[0] {
+                    let x = limits[0][0] + Double(ix)*griddeltas[0]
+                    probeLinearCoords += [x, y, z]
+                    globalIndices.append(indexFromIndices( [iz,iy,ix],  shape:gridShape, strides:gridStrides ))
+                }
+            }
+        }
+
+        let probeGrid = Matrix<Double>( [num[2],num[1],num[0],3], content:probeLinearCoords )
+
+        let probeDense = Matrix<Double>( [num[2],num[1],num[0]] )
+        
+
+        let centerMat = Matrix<Double>([3], content:probe.center.coords )
+
+        var disp:Matrix<Double>?
+
+        do {
+            disp = try cdist(probeGrid, centerMat)
+            //print("probeGridshape = \(disp!.getShape()), disp shape = \(disp!.getShape())")
+        }
+        catch {
+            print("unexpected error in cdist for probe-grid distance")
+            return ([Double](),[Int]())
+        }
+
+        let mask0 = Mask.compare( disp! ) { $0 < (radius - delta) }
+        let mask1 = Mask.compare( disp! ) { $0 > (radius + epsilon) }
+
+        var mask2:Mask?
+
+        do {
+            mask2 = try mask0.logical_not().logical_and(mask1.logical_not())
+        }
+        catch {
+            print("exception in making mask")
+            return ([Double](),[Int]())
+        }
+
+        let alpha = -1.0/(delta + epsilon)
+        let beta = (radius + epsilon)/(delta + epsilon)
+
+        var BETA = Matrix<Double>(probeDense.getShape())
+        BETA.ones()
+        BETA =  try! BETA.multiply(beta)
+
+        do {
+            try probeDense.setValueForMask(mask0, 1.0)
+            try probeDense.setValueForMask(mask1, 0.0)
+        }
+        catch {
+            print("exception in probeDense setValue using mask0 and mask1, probeDense shape = \(probeDense.getShape())")
+            return ([Double](),[Int]())
+        }
+
+        var transition:Matrix<Double>?
+
+        do {
+            transition = try disp!.multiply(alpha).add(BETA)
+            try probeDense.setValueForMask(mask2!,transition!)
+        }
+        catch {
+            print("exception in probeDense setValue using transition and mask2, probeDense shape = \(probeDense.getShape()), transition shape = \(transition!.getShape())")
+            return ([Double](),[Int]())
+        }
+
+        // 
+
+        return (probeDense.storage, globalIndices)
+
+
+    }
+
+
+func generateTriangulation( probes:[Probe], probeRadius:Double, gridspacing:Double, 
+        densityDelta:Double, densityEpsilon:Double, isoLevel:Double, numthreads:Int) 
+            throws {
+           // -> throws ([[Double]], [[Int]])  {
+
+
+    let pcoords = probes .map { $0.center }
+
+    var linearcoords = [Double]()
+
+    for coord in pcoords {
+        linearcoords += coord.coords
+    }
+
+
+    var spans = [[Double]]()
+
+    for j in 0..<3 {
+        let axiscoords = (0..<probes.count) .map { linearcoords[3*$0 + j] }
+        spans.append([axiscoords.min()! - 1.5*probeRadius, axiscoords.max()! + 1.5*probeRadius])
+    }
+
+
+    // work with grid vertices, one more than number of grid divisions
+    let gridvertices = (0..<3) .map { Int(round((spans[$0][1] - spans[$0][0])/gridspacing)) + 1  }
+
+    let griddeltas = (0..<3) .map { (spans[$0][1] - spans[$0][0])/Double(gridvertices[$0] - 1) }
+
+    print("\ngridvertices : \(gridvertices)  griddeltas : \(griddeltas)")
+
+    // compute parameters for subgrids (numdivision in number)
+    // need limits along each axis, number of grid intervals
+
+
+
+    // allot probes to nthreads
+    //
+    
+
+    var probesForThread = [[Probe]]() 
+
+    let probeChunk = probes.count / numthreads
+
+    for ithread in 0..<numthreads {
+        if ithread < numthreads - 1 {
+            probesForThread.append( Array(probes[(ithread*probeChunk)..<((ithread+1)*probeChunk)]))
+        }
+        else {
+            probesForThread.append( Array(probes[(ithread*probeChunk)..<probes.count]))
+        }
+    }
+
+    // Get densities for probes by thread 
+
+    var DENSITYBLOCKS = [[([Double],[Int])]]()
+
+    let group = DispatchGroup() 
+
+    let gridShape = [ gridvertices[2], gridvertices[1], gridvertices[0] ]
+
+    let gridDensity = Matrix<Double>(gridShape)
+
+    let gridStrides = gridDensity.getStrides()
+
+    for tidx in 0..<numthreads {
+
+                print("enter thread \(tidx)")
+       
+                group.enter()
+
+                computeQueue.async {
+
+                        var data:[([Double],[Int])]?
+
+                        let time0 = Date().timeIntervalSince1970
+
+                        
+                        data = probesForThread[tidx] .map { densityForProbe( probe:$0, radius:probeRadius, delta:densityDelta, 
+                            epsilon:densityEpsilon, griddeltas:griddeltas, limits:spans, gridShape:gridShape, gridStrides:gridStrides )}
+                        
+                        
+                        blocksQueue.sync {
+                            DENSITYBLOCKS.append(data!)
+                        }
+
+                        var datacount = 0
+                        _ = data! .map { datacount += $0.0.count }
+                        let time1 = Date().timeIntervalSince1970
+                        print("leave thread \(tidx), time = \(time1 - time0), number probes = \(probesForThread[tidx].count), data size = \(datacount)")
+                        group.leave()
+
+                        
+                    }
+
+            
+    } 
+
+    group.wait()
+
+    // Add probe densities into grid 
+
+    print("\nadd probe densities into grid ...")
+
+    let time0 = Date().timeIntervalSince1970
+
+    for block in DENSITYBLOCKS {
+        for data in block {
+            for (dens,gidx) in zip(data.0,data.1) {
+                gridDensity.storage[gidx] += dens
+            }
+        }
+        
+    }
+
+    let time1 = Date().timeIntervalSince1970
+
+    print("adding data into grid time : \(time1 - time0)")
+    
+
+
+
+
+
+}
+
+ 
