@@ -659,13 +659,54 @@ final class SwiftTENSURToolsTests: XCTestCase {
             print("could not write probes file !")
         }
         
+        let time1 = Date().timeIntervalSince1970
+
+        var tridata:([Vector],[Vector],[[Int]])?
+
         do {
-            try generateTriangulation( probes:probes, probeRadius:probeRad, gridspacing:0.25, 
+            tridata = try generateTriangulation( probes:probes, probeRadius:probeRad, gridspacing:0.15, 
             densityDelta:0.1, densityEpsilon:0.1, isoLevel:1.0, numthreads:10) 
         }
         catch {
             print("triangulation code failed !")
         }
+
+    // write out in obj format
+
+    let VERTICES = tridata!.0 
+    let NORMALS = tridata!.1
+    let FACES = tridata!.2
+
+    let url = URL(fileURLWithPath: "./isosurface.obj")
+
+    var outstr = ""
+
+    for vertex in VERTICES {
+        outstr += "v \(vertex.coords[0]) \(vertex.coords[1]) \(vertex.coords[2])\n"
+    }
+
+    for normal in NORMALS {
+        outstr += "v \(normal.coords[0]) \(normal.coords[1]) \(normal.coords[2])\n"
+    }
+    
+    for face in FACES {
+        outstr += "f \(face[0]+1) \(face[1]+1) \(face[2]+1)\n"
+    }
+    
+
+    do {
+        try outstr.write(to: url, atomically: true, encoding: String.Encoding.utf8)
+    } catch {
+        print("error writing file \(url)")
+    }
+
+    print("wrote file to path \(url)")
+
+    let time2 = Date().timeIntervalSince1970
+
+    print("\ntime for marching cubes = \(time2 - time1)")
+
+
         
     }
     

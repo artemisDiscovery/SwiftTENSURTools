@@ -14,12 +14,13 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         .package(url: "git@github.com:artemisDiscovery/MathTools.git" , from: "1.0.15"),
+        .package(url: "git@github.com:artemisDiscovery/SwiftMC33Lib.git" , from: "1.0.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "SwiftTENSURTools", dependencies:["MathTools"]),
+            name: "SwiftTENSURTools", dependencies:["MathTools", "SwiftMC33Lib"]),
         .testTarget(
             name: "SwiftTENSURToolsTests",
             dependencies: ["SwiftTENSURTools", "MathTools"]),

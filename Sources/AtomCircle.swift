@@ -1,7 +1,7 @@
 
 import Foundation
 import MathTools
-//import SwiftMC33Lib
+import SwiftMC33Lib
 
 import Dispatch
 
@@ -1409,7 +1409,7 @@ public func densityForProbe( probe:Probe, radius:Double, delta:Double, epsilon:D
 
 public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspacing:Double, 
         densityDelta:Double, densityEpsilon:Double, isoLevel:Double, numthreads:Int) 
-            throws {
+            throws -> ([Vector], [Vector], [[Int]]) {
            // -> throws ([[Double]], [[Int]])  {
 
 
@@ -1525,6 +1525,86 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
     print("adding data into grid time : \(time1 - time0)")
     
+    // run marching cubes 
+
+    print("\nenter marching cubes ...")
+
+    var nx:UInt32 = UInt32(gridvertices[0])
+    var ny:UInt32 = UInt32(gridvertices[1])
+    var nz:UInt32 = UInt32(gridvertices[2])
+
+    let ptr_r0 = UnsafeMutablePointer<Double>.allocate(capacity: 3)
+    ptr_r0.initialize(repeating: 0.0, count: 3)
+        defer {
+            ptr_r0.deinitialize(count: 3)
+            ptr_r0.deallocate()
+        }
+
+    let r0 = UnsafeMutableBufferPointer(start:ptr_r0, count:3 )
+
+    r0[0] = spans[0][0]
+    r0[1] = spans[1][0]
+    r0[2] = spans[2][0]
+
+    let ptr_d = UnsafeMutablePointer<Double>.allocate(capacity: 3)
+        ptr_d.initialize(repeating: 0.0, count: 3)
+        defer {
+            ptr_d.deinitialize(count: 3)
+            ptr_d.deallocate()
+        }
+
+    let d = UnsafeMutableBufferPointer(start:ptr_d, count:3 )
+
+    d[0] = griddeltas[0]
+    d[1] = griddeltas[1]
+    d[2] = griddeltas[2]
+    
+    
+    let ptr = UnsafeMutablePointer<GRD_data_type>.allocate(capacity: gridDensity.storage.count)
+
+    ptr.initialize(repeating: 0.0, count: gridDensity.storage.count)
+    defer {
+        ptr.deinitialize(count: gridDensity.storage.count)
+        ptr.deallocate()
+    }
+
+    let data = UnsafeMutableBufferPointer(start:ptr, count:gridDensity.storage.count )
+
+    _ = (0..<gridDensity.storage.count) .map { data[$0] = gridDensity.storage[$0]}
+
+    var G:UnsafeMutablePointer<_GRD> = grid_from_data_pointer(nx, ny, nz, ptr_r0, ptr_d, ptr)
+
+    var M:UnsafeMutablePointer<MC33> = create_MC33(G)
+
+    var S:UnsafeMutablePointer<surface> = calculate_isosurface(M, Float(isoLevel))
+
+    let nV = S.pointee.nV
+    let nT = S.pointee.nT 
+
+    let V = S.pointee.V
+    let N = S.pointee.N 
+    let T = S.pointee.T
+
+    print("\nHave \(nV) vertices and \(nT) elements")
+
+    var VERTICES = [Vector]()
+    var NORMALS = [Vector]()
+
+    for iv in 0..<Int(nV) {
+        VERTICES.append(Vector([Double(V![iv].0), Double(V![iv].1), Double(V![iv].2)]))
+        NORMALS.append(Vector([Double(N![iv].0), Double(N![iv].1), Double(N![iv].2)]))
+    }
+
+    // leave faces 0-indexed at this point
+
+    var FACES = [[Int]]()
+
+    for ie in 0..<Int(nT) {
+        FACES.append([Int(T![ie].0), Int(T![ie].1), Int(T![ie].2) ])
+    }
+    
+    return (VERTICES,NORMALS,FACES)
+
 
 
 
