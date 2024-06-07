@@ -1300,6 +1300,7 @@ public func indexFromIndices( _ indices:[Int],  shape:[Int], strides:[Int] )  ->
     return index 
 }
 
+
 // This returns for argument probe position a list of density values and 
 // offsets in the original grid storage
 
@@ -1406,6 +1407,92 @@ public func densityForProbe( probe:Probe, radius:Double, delta:Double, epsilon:D
 
     }
 
+public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddeltas:[Double], gridvertices:[Int], isoLevel:Double ) ->  ([Vector], [Vector], [[Int]]) {
+    var nx:UInt32 = UInt32(gridvertices[0])
+    var ny:UInt32 = UInt32(gridvertices[1])
+    var nz:UInt32 = UInt32(gridvertices[2])
+
+    print("in runMarchingCubes, nx,ny,nz = \(nx), \(ny), \(nz)")
+
+    let ptr_r0 = UnsafeMutablePointer<Double>.allocate(capacity: 3)
+    ptr_r0.initialize(repeating: 0.0, count: 3)
+        defer {
+            ptr_r0.deinitialize(count: 3)
+            ptr_r0.deallocate()
+        }
+
+    let r0 = UnsafeMutableBufferPointer(start:ptr_r0, count:3 )
+
+    r0[0] = limits[0][0]
+    r0[1] = limits[1][0]
+    r0[2] = limits[2][0]
+
+    print("grid limits : \(r0)")
+
+    let ptr_d = UnsafeMutablePointer<Double>.allocate(capacity: 3)
+        ptr_d.initialize(repeating: 0.0, count: 3)
+        defer {
+            ptr_d.deinitialize(count: 3)
+            ptr_d.deallocate()
+        }
+
+    let d = UnsafeMutableBufferPointer(start:ptr_d, count:3 )
+
+    d[0] = griddeltas[0]
+    d[1] = griddeltas[1]
+    d[2] = griddeltas[2]
+    
+    print("grid deltas : \(d)")
+    
+    let ptr = UnsafeMutablePointer<GRD_data_type>.allocate(capacity: density.storage.count)
+
+    ptr.initialize(repeating: 0.0, count: density.storage.count)
+    defer {
+        ptr.deinitialize(count: density.storage.count)
+        ptr.deallocate()
+    }
+
+    let data = UnsafeMutableBufferPointer(start:ptr, count:density.storage.count )
+
+    _ = (0..<density.storage.count) .map { data[$0] = density.storage[$0]}
+
+    var G:UnsafeMutablePointer<_GRD> = grid_from_data_pointer(nx, ny, nz, ptr_r0, ptr_d, ptr)
+
+    var M:UnsafeMutablePointer<MC33> = create_MC33(G)
+
+    var S:UnsafeMutablePointer<surface> = calculate_isosurface(M, Float(isoLevel))
+
+    let nV = S.pointee.nV
+    let nT = S.pointee.nT 
+
+    print("have \(nV) vertices, \(nT) faces")
+
+    let V = S.pointee.V
+    let N = S.pointee.N 
+    let T = S.pointee.T
+
+
+    var VERTICES = [Vector]()
+    var NORMALS = [Vector]()
+
+    for iv in 0..<Int(nV) {
+        VERTICES.append(Vector([Double(V![iv].0), Double(V![iv].1), Double(V![iv].2)]))
+        NORMALS.append(Vector([Double(N![iv].0), Double(N![iv].1), Double(N![iv].2)]))
+    }
+
+    // leave faces 0-indexed at this point
+
+    var FACES = [[Int]]()
+
+    for ie in 0..<Int(nT) {
+        FACES.append([Int(T![ie].0), Int(T![ie].1), Int(T![ie].2) ])
+    }
+
+    print("returning \(VERTICES.count) vertices, \(NORMALS.count) normals, \(FACES.count) faces")
+    
+    return (VERTICES,NORMALS,FACES)
+
+}
 
 public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspacing:Double, 
         densityDelta:Double, densityEpsilon:Double, isoLevel:Double, numthreads:Int) 
@@ -1529,86 +1616,202 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
     print("\nenter marching cubes ...")
 
-    var nx:UInt32 = UInt32(gridvertices[0])
-    var ny:UInt32 = UInt32(gridvertices[1])
-    var nz:UInt32 = UInt32(gridvertices[2])
+    // divide along Z-axis by number of threads
 
-    let ptr_r0 = UnsafeMutablePointer<Double>.allocate(capacity: 3)
-    ptr_r0.initialize(repeating: 0.0, count: 3)
-        defer {
-            ptr_r0.deinitialize(count: 3)
-            ptr_r0.deallocate()
+    let deltaGridZ = gridvertices[2] / numthreads
+
+    var gridverticesForThread = [[Int]]()
+
+    
+
+    var densityForThread = [Matrix<Double>]()
+
+    // just need lower limit
+
+    var limitsForThread = [[[Double]]]()
+
+    let nummcthreads = 1
+
+    //for ithread in 0..<numthreads { 
+    for ithread in 0..<nummcthreads {
+        let lowergridZ = ithread*deltaGridZ
+        var uppergridZ = lowergridZ + deltaGridZ
+        if ithread == nummcthreads - 1 {
+            uppergridZ = gridvertices[2]
         }
 
-    let r0 = UnsafeMutableBufferPointer(start:ptr_r0, count:3 )
+        gridverticesForThread.append([gridvertices[0],gridvertices[1],(uppergridZ - lowergridZ)])
 
-    r0[0] = spans[0][0]
-    r0[1] = spans[1][0]
-    r0[2] = spans[2][0]
+        print("thread \(ithread) : gridverticesForThread = \(gridverticesForThread[ithread])")
 
-    let ptr_d = UnsafeMutablePointer<Double>.allocate(capacity: 3)
-        ptr_d.initialize(repeating: 0.0, count: 3)
-        defer {
-            ptr_d.deinitialize(count: 3)
-            ptr_d.deallocate()
+        let lowerZ = spans[2][0] + Double(lowergridZ)*griddeltas[2]
+        var upperZ = spans[2][0] + Double(uppergridZ)*griddeltas[2]
+        if ithread == nummcthreads - 1 {
+            upperZ  = spans[2][0] + Double(gridvertices[2])*griddeltas[2]
         }
 
-    let d = UnsafeMutableBufferPointer(start:ptr_d, count:3 )
+        limitsForThread.append([spans[0],spans[1],[lowerZ,upperZ]])
 
-    d[0] = griddeltas[0]
-    d[1] = griddeltas[1]
-    d[2] = griddeltas[2]
-    
-    
-    let ptr = UnsafeMutablePointer<GRD_data_type>.allocate(capacity: gridDensity.storage.count)
+        print("thread \(ithread) : limitsForThread = \(limitsForThread[ithread])")
+        
+        var theslice:Matrix<Double>?
 
-    ptr.initialize(repeating: 0.0, count: gridDensity.storage.count)
-    defer {
-        ptr.deinitialize(count: gridDensity.storage.count)
-        ptr.deallocate()
+        do {
+            theslice = try gridDensity.slice([lowergridZ..<uppergridZ,0..<gridvertices[1],0..<gridvertices[0]])
+        }
+        catch {
+            print("unexpected exception in Matrix.slice()")
+        }
+
+        
+        densityForThread.append( theslice! )
+
+        print("thread \(ithread) : density slice shape = \(theslice!.getShape()), strides = \(theslice!.getStrides())")
+
     }
 
-    let data = UnsafeMutableBufferPointer(start:ptr, count:gridDensity.storage.count )
+    var MCBLOCKS = Array<([Vector],[Vector],[[Int]])?>(repeating:nil, count:nummcthreads )
 
-    _ = (0..<gridDensity.storage.count) .map { data[$0] = gridDensity.storage[$0]}
+    //for tidx in 0..<numthreads {
+    for tidx in 0..<nummcthreads {
 
-    var G:UnsafeMutablePointer<_GRD> = grid_from_data_pointer(nx, ny, nz, ptr_r0, ptr_d, ptr)
-
-    var M:UnsafeMutablePointer<MC33> = create_MC33(G)
-
-    var S:UnsafeMutablePointer<surface> = calculate_isosurface(M, Float(isoLevel))
-
-    let nV = S.pointee.nV
-    let nT = S.pointee.nT 
-
-    let V = S.pointee.V
-    let N = S.pointee.N 
-    let T = S.pointee.T
-
-    print("\nHave \(nV) vertices and \(nT) elements")
-
-    var VERTICES = [Vector]()
-    var NORMALS = [Vector]()
-
-    for iv in 0..<Int(nV) {
-        VERTICES.append(Vector([Double(V![iv].0), Double(V![iv].1), Double(V![iv].2)]))
-        NORMALS.append(Vector([Double(N![iv].0), Double(N![iv].1), Double(N![iv].2)]))
-    }
-
-    // leave faces 0-indexed at this point
-
-    var FACES = [[Int]]()
-
-    for ie in 0..<Int(nT) {
-        FACES.append([Int(T![ie].0), Int(T![ie].1), Int(T![ie].2) ])
-    }
+            print("enter MC thread \(tidx)")
     
-    return (VERTICES,NORMALS,FACES)
+            group.enter()
+
+            computeQueue.async {
 
 
+                    let time0 = Date().timeIntervalSince1970
+
+                    
+                    let tri = runMarchingCubes( density:densityForThread[tidx], limits:limitsForThread[tidx], 
+                        griddeltas:griddeltas, gridvertices:gridverticesForThread[tidx], isoLevel:isoLevel )
+                    
+                    
+                    blocksQueue.sync {
+                        MCBLOCKS[tidx] = tri
+                    }
+                    
+                    let time1 = Date().timeIntervalSince1970
+                    
+                    print("leave MC thread \(tidx), time = \(time1 - time0)")
+                    group.leave()
+
+                    
+                }
+
+            
+    } 
+
+    group.wait()
+
+    // need to combine using matching vertices at boundaries
+
+    var MERGEVERTICES = [Vector]()
+    var MERGENORMALS = [Vector]()
+    var MERGEFACES = [[Int]]()
+
+    var topVertices = [(Int,Vector)]()
+
+    var Ztop = 1.0e12
+
+    for tidx in 0..<nummcthreads {
+        let threadVERTICES = MCBLOCKS[tidx]!.0
+        let threadNORMALS = MCBLOCKS[tidx]!.1
+        let threadFACES = MCBLOCKS[tidx]!.2
+
+        
+
+        if tidx == 0 {
+            MERGEVERTICES += threadVERTICES
+            MERGENORMALS += threadNORMALS
+            MERGEFACES += threadFACES
+            Ztop = limitsForThread[tidx][2][1]
+            topVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[2] - Ztop) < 0.000001 } 
+            continue
+        }
+
+        // vertices at boundary, upper limit of MERGEVERTICES
+
+        let Zbottom = limitsForThread[tidx][2][0]
+        let bottomVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[2] - Zbottom) < 0.000001 }
 
 
+        var topCoords = [Double]()
+       
+        let topIndices = topVertices .map { $0.0 }
 
+        _ = topVertices .map { topCoords += $0.1.coords }
+
+        let topCoordMat = Matrix<Double>([topVertices.count,3], content:topCoords)
+
+        var bottomCoords = [Double]()
+       
+        let bottomIndices = bottomVertices .map { $0.0 }
+
+        _ = bottomVertices .map { bottomCoords += $0.1.coords }
+
+        let bottomCoordMat = Matrix<Double>([bottomVertices.count,3], content:bottomCoords)
+
+        print("thread \(tidx), # top vertices = \(topVertices.count), # bottom vertices = \(bottomVertices.count)")
+
+        var dists:Matrix<Double>?
+
+        do {
+            dists = try cdist(bottomCoordMat, topCoordMat)
+        }
+        catch {
+            print("unexpected exception in cdist")
+        } 
+
+        let mask = Mask.compare( dists! ) { $0 < 0.00000001 }
+
+        let pairs = mask.nonzero()
+
+        print("have matching pairs : \(pairs)")
+
+        var translateBottomToTop = Dictionary<Int,Int>()
+
+        pairs .map { translateBottomToTop[$0[0]] = $0[1] }
+
+        var translate = [Int:Int]()
+
+        var accum = MERGEVERTICES.count
+
+        var keepVERTICES = [Vector]()
+        var keepNORMALS = [Vector]()
+
+        for offset in 0..<threadVERTICES.count {
+            if translateBottomToTop[offset] != nil {
+                translate[offset] = translateBottomToTop[offset]!
+                
+            }
+            else {
+                keepVERTICES.append(threadVERTICES[offset])
+                keepNORMALS.append(threadNORMALS[offset])
+                translate[offset] = accum 
+                accum += 1
+            }
+        }
+
+        let keepFACES = threadFACES .map { [translate[$0[0]]!, translate[$0[1]]!, translate[$0[2]]!] }
+
+        MERGEVERTICES += keepVERTICES
+        MERGENORMALS += keepNORMALS
+        MERGEFACES += keepFACES
+
+        Ztop = limitsForThread[tidx][2][1]
+
+        topVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[2] - Ztop) < 0.000001 }
+
+        topVertices = topVertices .map { ( translate[$0.0]!, $0.1 )}
+
+
+    }
+
+
+    return (MERGEVERTICES,MERGENORMALS,MERGEFACES)
 
 }
 
