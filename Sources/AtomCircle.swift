@@ -1741,14 +1741,16 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
             MERGENORMALS += threadNORMALS
             MERGEFACES += threadFACES
             Ztop = limitsForThread[tidx][2][1]
-            topVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[2] - Ztop) < 0.000001 } 
+            
+            topVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[2] - Ztop) < 0.00000001 } 
+            print("for thread \(tidx), Ztop = \(zTop), # top vertices = \(topVertices.count)")
             continue
         }
 
         // vertices at boundary, upper limit of MERGEVERTICES
 
         let Zbottom = limitsForThread[tidx][2][0]
-        let bottomVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[2] - Zbottom) < 0.000001 }
+        let bottomVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[2] - Zbottom) < 0.00000001 }
 
 
         var topCoords = [Double]()
@@ -1767,7 +1769,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         let bottomCoordMat = Matrix<Double>([bottomVertices.count,3], content:bottomCoords)
 
-        print("thread \(tidx), # top vertices = \(topVertices.count), # bottom vertices = \(bottomVertices.count)")
+        print("thread \(tidx), Zbottom = \(Zbottom) # top vertices = \(topVertices.count), # bottom vertices = \(bottomVertices.count)")
 
         var dists:Matrix<Double>?
 
@@ -1816,9 +1818,11 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         Ztop = limitsForThread[tidx][2][1]
 
-        topVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[2] - Ztop) < 0.000001 }
+        topVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[2] - Ztop) < 0.00000001 }
 
         topVertices = topVertices .map { ( translate[$0.0]!, $0.1 )}
+
+        print( "thread \(tidx), regenerate top vertices, Ztop = \(Ztop), # vertices = \(topVertices.count)")
 
 
     }
