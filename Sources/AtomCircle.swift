@@ -1630,7 +1630,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
     var limitsForThread = [[[Double]]]()
 
-    let nummcthreads = 1
+    let nummcthreads = numthreads
 
     //for ithread in 0..<numthreads { 
     for ithread in 0..<nummcthreads {
