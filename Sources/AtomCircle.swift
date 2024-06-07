@@ -1475,10 +1475,23 @@ public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddel
     var VERTICES = [Vector]()
     var NORMALS = [Vector]()
 
+    // it appears that vertices are in grid coordinates !!
+
     for iv in 0..<Int(nV) {
-        VERTICES.append(Vector([Double(V![iv].0), Double(V![iv].1), Double(V![iv].2)]))
+        var x = Double(V![iv].0)
+        var y = Double(V![iv].1)
+        var z = Double(V![iv].2)
+
+        x = limits[0][0] + x*griddeltas[0]
+        y = limits[1][0] + y*griddeltas[1]
+        z = limits[2][0] + z*griddeltas[2]
+
+        VERTICES.append(Vector([x, y, z]))
         NORMALS.append(Vector([Double(N![iv].0), Double(N![iv].1), Double(N![iv].2)]))
     }
+
+    // it appears that vertices are in grid coordinates !!
+
 
     // leave faces 0-indexed at this point
 
