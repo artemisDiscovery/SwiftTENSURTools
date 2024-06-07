@@ -1744,6 +1744,9 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
             
             topVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[2] - Ztop) < 0.00000001 } 
             print("for thread \(tidx), Ztop = \(Ztop), # top vertices = \(topVertices.count)")
+            for v in threadVERTICES.enumerated() {
+                print("\t\(v.offset) : \(v.element)")
+            }
             continue
         }
 
