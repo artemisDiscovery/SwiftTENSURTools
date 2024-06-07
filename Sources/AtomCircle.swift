@@ -1650,7 +1650,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
         let lowergridZ = ithread*deltaGridZ
         var uppergridZ = lowergridZ + deltaGridZ
         if ithread == nummcthreads - 1 {
-            uppergridZ = gridvertices[2]
+            uppergridZ = gridvertices[2] - 1
         }
 
         gridverticesForThread.append([gridvertices[0],gridvertices[1],(uppergridZ - lowergridZ + 1)])
@@ -1660,7 +1660,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
         let lowerZ = spans[2][0] + Double(lowergridZ)*griddeltas[2]
         var upperZ = spans[2][0] + Double(uppergridZ)*griddeltas[2]
         if ithread == nummcthreads - 1 {
-            upperZ  = spans[2][0] + Double(gridvertices[2])*griddeltas[2]
+            upperZ  = spans[2][0] + Double(gridvertices[2]-1)*griddeltas[2]
         }
 
         limitsForThread.append([spans[0],spans[1],[lowerZ,upperZ]])
