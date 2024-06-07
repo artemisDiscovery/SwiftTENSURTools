@@ -1427,7 +1427,7 @@ public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddel
     r0[1] = limits[1][0]
     r0[2] = limits[2][0]
 
-    print("grid limits : \(r0)")
+    print("grid lower limits : \(r0[0]), \(r0[1]), \(r0[2])")
 
     let ptr_d = UnsafeMutablePointer<Double>.allocate(capacity: 3)
         ptr_d.initialize(repeating: 0.0, count: 3)
@@ -1442,7 +1442,7 @@ public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddel
     d[1] = griddeltas[1]
     d[2] = griddeltas[2]
     
-    print("grid deltas : \(d)")
+    print("grid deltas : \(d[0]), \(d[1]), \(d[2])")
     
     let ptr = UnsafeMutablePointer<GRD_data_type>.allocate(capacity: density.storage.count)
 
