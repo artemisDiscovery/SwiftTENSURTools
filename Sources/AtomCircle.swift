@@ -1653,7 +1653,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
             uppergridZ = gridvertices[2]
         }
 
-        gridverticesForThread.append([gridvertices[0],gridvertices[1],(uppergridZ - lowergridZ)])
+        gridverticesForThread.append([gridvertices[0],gridvertices[1],(uppergridZ - lowergridZ + 1)])
 
         print("thread \(ithread) : gridverticesForThread = \(gridverticesForThread[ithread])")
 
@@ -1670,7 +1670,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
         var theslice:Matrix<Double>?
 
         do {
-            theslice = try gridDensity.slice([lowergridZ..<uppergridZ,0..<gridvertices[1],0..<gridvertices[0]])
+            theslice = try gridDensity.slice([lowergridZ..<(uppergridZ+1),0..<gridvertices[1],0..<gridvertices[0]])
         }
         catch {
             print("unexpected exception in Matrix.slice()")
