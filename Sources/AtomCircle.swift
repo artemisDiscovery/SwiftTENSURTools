@@ -1726,6 +1726,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
     var MERGEFACES = [[Int]]()
 
     var topVertices = [(Int,Vector)]()
+    var translateBottomToTop = Dictionary<Int,Int>()
 
     var Ztop = 1.0e12
 
@@ -1744,9 +1745,10 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
             
             topVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[2] - Ztop) < 0.00000001 } 
             print("for thread \(tidx), Ztop = \(Ztop), # top vertices = \(topVertices.count)")
-            for v in threadVERTICES.enumerated() {
-                print("\t\(v.offset) : \(v.element)")
-            }
+            // initialize translate
+
+            topVertices .map translate[$0.offset] = $0.offset
+            
             continue
         }
 
@@ -1789,9 +1791,9 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         print("have matching pairs : \(pairs)")
 
-        var translateBottomToTop = Dictionary<Int,Int>()
+        
 
-        pairs .map { translateBottomToTop[$0[0]] = $0[1] }
+        pairs .map { translateBottomToTop[$0[0]] = translate[$0[1]] }
 
         var translate = [Int:Int]()
 
