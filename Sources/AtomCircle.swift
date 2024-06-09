@@ -1739,7 +1739,8 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
         let threadNORMALS = MCBLOCKS[tidx]!.1
         let threadFACES = MCBLOCKS[tidx]!.2
 
-        
+        print("THREAD \(tidx), # VERTICES = \(threadVERTICES.count)")
+        print("CURRENT # MERGED VERTICES = \(MERGEVERTICES.count)")
 
         if tidx == 0 {
             MERGEVERTICES += threadVERTICES
@@ -1780,10 +1781,15 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         let bottomCoordMat = Matrix<Double>([bottomVertices.count,3], content:bottomCoords)
 
-        print("thread \(tidx), Zbottom = \(Zbottom) # top vertices = \(topVertices.count), # bottom vertices = \(bottomVertices.count)")
+        print("thread \(tidx), Zbottom = \(Zbottom) # top vertices from prevous chunk = \(topVertices.count), # bottom vertices = \(bottomVertices.count)")
 
         print("first five top vertices:")
         for k in 0..<5 {
+            print("\(topVertices[k])")
+        }
+
+        print("last five top vertices:")
+        for k in (topVertices.count-5)..<topVertices.count {
             print("\(topVertices[k])")
         }
 
@@ -1792,6 +1798,10 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
             print("\(bottomVertices[k])")
         }
 
+        print("last five bottom vertices:")
+        for k in (bottomVertices.count-5)..<bottomVertices.count {
+            print("\(bottomVertices[k])")
+        }
         
 
         var dists:Matrix<Double>?
@@ -1809,22 +1819,35 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         // current topIndiced has correct offsets
 
+        translateBottomToTop = [Int:Int]()
+
         _ = pairs .map { translateBottomToTop[bottomIndices[$0[0]]] = topIndices[$0[1]] }
 
         print("translates first five bottom indices:")
         for k in 0..<5 {
             print("\(bottomIndices[k]) : \(translateBottomToTop[bottomIndices[k]]!)")
         }
-
+        print("translates last five bottom indices:")
+        for k in (bottomVertices.count-5)..<bottomVertices.count {
+            print("\(bottomIndices[k]) : \(translateBottomToTop[bottomIndices[k]]!)")
+        }
 
         var accum = MERGEVERTICES.count
+
+        print("start with add index = \(accum)")
 
         var keepVERTICES = [Vector]()
         var keepNORMALS = [Vector]()
 
+        var skip = 0
+        var new = 0
+
+        translate = [Int:Int]()
+
         for offset in 0..<threadVERTICES.count {
             if translateBottomToTop[offset] != nil {
                 translate[offset] = translateBottomToTop[offset]!
+                skip += 1
                 
             }
             else {
@@ -1832,6 +1855,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
                 keepNORMALS.append(threadNORMALS[offset])
                 translate[offset] = accum 
                 accum += 1
+                new += 1
             }
         }
 
@@ -1840,6 +1864,8 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
         MERGEVERTICES += keepVERTICES
         MERGENORMALS += keepNORMALS
         MERGEFACES += keepFACES
+
+        print("had \(skip) vertices from previous chunk, added \(new) vertices")
 
         Ztop = limitsForThread[tidx][2][1]
 
