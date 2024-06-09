@@ -1408,9 +1408,9 @@ public func densityForProbe( probe:Probe, radius:Double, delta:Double, epsilon:D
     }
 
 public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddeltas:[Double], gridvertices:[Int], isoLevel:Double ) ->  ([Vector], [Vector], [[Int]]) {
-    var nx:UInt32 = UInt32(gridvertices[0])
-    var ny:UInt32 = UInt32(gridvertices[1])
-    var nz:UInt32 = UInt32(gridvertices[2])
+    let nx:UInt32 = UInt32(gridvertices[0])
+    let ny:UInt32 = UInt32(gridvertices[1])
+    let nz:UInt32 = UInt32(gridvertices[2])
 
     print("in runMarchingCubes, nx,ny,nz = \(nx), \(ny), \(nz)")
 
@@ -1456,11 +1456,11 @@ public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddel
 
     _ = (0..<density.storage.count) .map { data[$0] = density.storage[$0]}
 
-    var G:UnsafeMutablePointer<_GRD> = grid_from_data_pointer(nx, ny, nz, ptr_r0, ptr_d, ptr)
+    let G:UnsafeMutablePointer<_GRD> = grid_from_data_pointer(nx, ny, nz, ptr_r0, ptr_d, ptr)
 
-    var M:UnsafeMutablePointer<MC33> = create_MC33(G)
+    let M:UnsafeMutablePointer<MC33> = create_MC33(G)
 
-    var S:UnsafeMutablePointer<surface> = calculate_isosurface(M, Float(isoLevel))
+    let S:UnsafeMutablePointer<surface> = calculate_isosurface(M, Float(isoLevel))
 
     let nV = S.pointee.nV
     let nT = S.pointee.nT 
@@ -1726,7 +1726,11 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
     var MERGEFACES = [[Int]]()
 
     var topVertices = [(Int,Vector)]()
+    // translate just boundary vertices to existing offsets
     var translateBottomToTop = Dictionary<Int,Int>()
+    // translate all vertices for thread to global offsets
+    var translate = Dictionary<Int,Int>()
+    
 
     var Ztop = 1.0e12
 
@@ -1747,8 +1751,8 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
             print("for thread \(tidx), Ztop = \(Ztop), # top vertices = \(topVertices.count)")
             // initialize translate
 
-            topVertices .map translate[$0.offset] = $0.offset
-            
+            // for first chunk, offsets need no adjustmet
+           
             continue
         }
 
@@ -1760,6 +1764,8 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         var topCoords = [Double]()
        
+        // topVertices has correct offsets for vertices at top of prevous chunk
+
         let topIndices = topVertices .map { $0.0 }
 
         _ = topVertices .map { topCoords += $0.1.coords }
@@ -1776,6 +1782,18 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         print("thread \(tidx), Zbottom = \(Zbottom) # top vertices = \(topVertices.count), # bottom vertices = \(bottomVertices.count)")
 
+        print("first five top vertices:")
+        for k in 0..<5 {
+            print("\(topVertices[k])")
+        }
+
+        print("first five bottom vertices:")
+        for k in 0..<5 {
+            print("\(bottomVertices[k])")
+        }
+
+        
+
         var dists:Matrix<Double>?
 
         do {
@@ -1789,13 +1807,15 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         let pairs = mask.nonzero()
 
-        print("have matching pairs : \(pairs)")
+        // current topIndiced has correct offsets
 
-        
+        _ = pairs .map { translateBottomToTop[bottomIndices[$0[0]]] = topIndices[$0[1]] }
 
-        pairs .map { translateBottomToTop[$0[0]] = translate[$0[1]] }
+        print("translates first five bottom indices:")
+        for k in 0..<5 {
+            print("\(bottomIndices[k]) : \(translateBottomToTop[bottomIndices[k]]!)")
+        }
 
-        var translate = [Int:Int]()
 
         var accum = MERGEVERTICES.count
 
