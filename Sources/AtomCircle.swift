@@ -1407,12 +1407,13 @@ public func densityForProbe( probe:Probe, radius:Double, delta:Double, epsilon:D
 
     }
 
+
 public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddeltas:[Double], gridvertices:[Int], isoLevel:Double ) ->  ([Vector], [Vector], [[Int]]) {
     let nx:UInt32 = UInt32(gridvertices[0])
     let ny:UInt32 = UInt32(gridvertices[1])
     let nz:UInt32 = UInt32(gridvertices[2])
 
-    print("in runMarchingCubes, nx,ny,nz = \(nx), \(ny), \(nz)")
+    //print("in runMarchingCubes, nx,ny,nz = \(nx), \(ny), \(nz)")
 
     let ptr_r0 = UnsafeMutablePointer<Double>.allocate(capacity: 3)
     ptr_r0.initialize(repeating: 0.0, count: 3)
@@ -1427,7 +1428,7 @@ public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddel
     r0[1] = limits[1][0]
     r0[2] = limits[2][0]
 
-    print("grid lower limits : \(r0[0]), \(r0[1]), \(r0[2])")
+    //print("grid lower limits : \(r0[0]), \(r0[1]), \(r0[2])")
 
     let ptr_d = UnsafeMutablePointer<Double>.allocate(capacity: 3)
         ptr_d.initialize(repeating: 0.0, count: 3)
@@ -1442,7 +1443,7 @@ public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddel
     d[1] = griddeltas[1]
     d[2] = griddeltas[2]
     
-    print("grid deltas : \(d[0]), \(d[1]), \(d[2])")
+    //print("grid deltas : \(d[0]), \(d[1]), \(d[2])")
     
     let ptr = UnsafeMutablePointer<GRD_data_type>.allocate(capacity: density.storage.count)
 
@@ -1465,7 +1466,7 @@ public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddel
     let nV = S.pointee.nV
     let nT = S.pointee.nT 
 
-    print("have \(nV) vertices, \(nT) faces")
+    //print("have \(nV) vertices, \(nT) faces")
 
     let V = S.pointee.V
     let N = S.pointee.N 
@@ -1490,25 +1491,23 @@ public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddel
         NORMALS.append(Vector([Double(N![iv].0), Double(N![iv].1), Double(N![iv].2)]))
     }
 
-    // it appears that vertices are in grid coordinates !!
-
-
-    // leave faces 0-indexed at this point
-
+ 
     var FACES = [[Int]]()
 
     for ie in 0..<Int(nT) {
         FACES.append([Int(T![ie].0), Int(T![ie].1), Int(T![ie].2) ])
     }
 
-    print("returning \(VERTICES.count) vertices, \(NORMALS.count) normals, \(FACES.count) faces")
+   
+
+    //print("returning \(VERTICES.count) vertices, \(NORMALS.count) normals, \(FACES.count) faces")
     
     return (VERTICES,NORMALS,FACES)
 
 }
 
 public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspacing:Double, 
-        densityDelta:Double, densityEpsilon:Double, isoLevel:Double, numthreads:Int) 
+        densityDelta:Double, densityEpsilon:Double, isoLevel:Double, numthreads:Int, mingridchunk:Int=100) 
             throws -> ([Vector], [Vector], [[Int]]) {
            // -> throws ([[Double]], [[Int]])  {
 
@@ -1631,11 +1630,13 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
     // divide along Z-axis by number of threads
 
-    let deltaGridZ = gridvertices[2] / numthreads
+    var nummcthreads = min(numthreads, gridvertices[2]/mingridchunk)
+
+    print("use \(nummcthreads) threads for marching cube")
+
+    let deltaGridZ = gridvertices[2] / nummcthreads
 
     var gridverticesForThread = [[Int]]()
-
-    
 
     var densityForThread = [Matrix<Double>]()
 
@@ -1643,9 +1644,11 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
     var limitsForThread = [[[Double]]]()
 
-    let nummcthreads = numthreads
+    var marchingcubetime = 0.0
 
     //for ithread in 0..<numthreads { 
+
+    
     for ithread in 0..<nummcthreads {
         let lowergridZ = ithread*deltaGridZ
         var uppergridZ = lowergridZ + deltaGridZ
@@ -1655,7 +1658,6 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         gridverticesForThread.append([gridvertices[0],gridvertices[1],(uppergridZ - lowergridZ + 1)])
 
-        print("thread \(ithread) : gridverticesForThread = \(gridverticesForThread[ithread])")
 
         let lowerZ = spans[2][0] + Double(lowergridZ)*griddeltas[2]
         var upperZ = spans[2][0] + Double(uppergridZ)*griddeltas[2]
@@ -1665,7 +1667,6 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         limitsForThread.append([spans[0],spans[1],[lowerZ,upperZ]])
 
-        print("thread \(ithread) : limitsForThread = \(limitsForThread[ithread])")
         
         var theslice:Matrix<Double>?
 
@@ -1679,16 +1680,17 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
         
         densityForThread.append( theslice! )
 
-        print("thread \(ithread) : density slice shape = \(theslice!.getShape()), strides = \(theslice!.getStrides())")
 
     }
+
+
 
     var MCBLOCKS = Array<([Vector],[Vector],[[Int]])?>(repeating:nil, count:nummcthreads )
 
     //for tidx in 0..<numthreads {
     for tidx in 0..<nummcthreads {
 
-            print("enter MC thread \(tidx)")
+            print("enter marching cube thread \(tidx)")
     
             group.enter()
 
@@ -1708,7 +1710,8 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
                     
                     let time1 = Date().timeIntervalSince1970
                     
-                    print("leave MC thread \(tidx), time = \(time1 - time0)")
+                    print("leave marching cube thread \(tidx), time = \(time1 - time0), # vertices = \(tri.0.count), # faces = \(tri.0.count)")
+                    marchingcubetime += time1 - time0
                     group.leave()
 
                     
@@ -1749,7 +1752,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
             Ztop = limitsForThread[tidx][2][1]
             
             topVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[2] - Ztop) < 0.00000001 } 
-            print("for thread \(tidx), Ztop = \(Ztop), # top vertices = \(topVertices.count)")
+            //print("for thread \(tidx), Ztop = \(Ztop), # top vertices = \(topVertices.count)")
             // initialize translate
 
             // for first chunk, offsets need no adjustmet
@@ -1781,28 +1784,10 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         let bottomCoordMat = Matrix<Double>([bottomVertices.count,3], content:bottomCoords)
 
-        print("thread \(tidx), Zbottom = \(Zbottom) # top vertices from prevous chunk = \(topVertices.count), # bottom vertices = \(bottomVertices.count)")
-
-        print("first five top vertices:")
-        for k in 0..<5 {
-            print("\(topVertices[k])")
+        if topVertices.count != bottomVertices.count {
+            print("error, number of vertices at Z-max or previous grid chunk \(topVertices.count) no equal to number at Z-min of next \(bottomVertices.count)")
         }
 
-        print("last five top vertices:")
-        for k in (topVertices.count-5)..<topVertices.count {
-            print("\(topVertices[k])")
-        }
-
-        print("first five bottom vertices:")
-        for k in 0..<5 {
-            print("\(bottomVertices[k])")
-        }
-
-        print("last five bottom vertices:")
-        for k in (bottomVertices.count-5)..<bottomVertices.count {
-            print("\(bottomVertices[k])")
-        }
-        
 
         var dists:Matrix<Double>?
 
@@ -1823,18 +1808,9 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         _ = pairs .map { translateBottomToTop[bottomIndices[$0[0]]] = topIndices[$0[1]] }
 
-        print("translates first five bottom indices:")
-        for k in 0..<5 {
-            print("\(bottomIndices[k]) : \(translateBottomToTop[bottomIndices[k]]!)")
-        }
-        print("translates last five bottom indices:")
-        for k in (bottomVertices.count-5)..<bottomVertices.count {
-            print("\(bottomIndices[k]) : \(translateBottomToTop[bottomIndices[k]]!)")
-        }
 
         var accum = MERGEVERTICES.count
 
-        print("start with add index = \(accum)")
 
         var keepVERTICES = [Vector]()
         var keepNORMALS = [Vector]()
@@ -1865,7 +1841,6 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
         MERGENORMALS += keepNORMALS
         MERGEFACES += keepFACES
 
-        print("had \(skip) vertices from previous chunk, added \(new) vertices")
 
         Ztop = limitsForThread[tidx][2][1]
 
@@ -1873,7 +1848,6 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         topVertices = topVertices .map { ( translate[$0.0]!, $0.1 )}
 
-        print( "thread \(tidx), regenerate top vertices, Ztop = \(Ztop), # vertices = \(topVertices.count)")
 
 
     }
