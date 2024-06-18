@@ -663,9 +663,13 @@ final class SwiftTENSURToolsTests: XCTestCase {
 
         var tridata:([Vector],[Vector],[[Int]])?
 
+        // set axis for testing 
+
+        let testaxis = AXES.Z
+
         do {
             tridata = try generateTriangulation( probes:probes, probeRadius:probeRad, gridspacing:0.15, 
-            densityDelta:0.1, densityEpsilon:0.1, isoLevel:1.0, numthreads:10) 
+            densityDelta:0.1, densityEpsilon:0.1, isoLevel:1.0, numthreads:10, axis:testaxis) 
         }
         catch {
             print("triangulation code failed !")
@@ -677,7 +681,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
     let NORMALS = tridata!.1
     let FACES = tridata!.2
 
-    let url = URL(fileURLWithPath: "./isosurface.obj")
+    let url = URL(fileURLWithPath: "./isosurface.axis.\(testaxis.rawValue).obj")
 
     var outstr = ""
 
