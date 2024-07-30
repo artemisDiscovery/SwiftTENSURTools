@@ -1289,7 +1289,10 @@ public func indexFromIndices( _ indices:[Int],  shape:[Int], strides:[Int] )  ->
 
     var index = 0 
 
-    for (sidx,idx) in indices.enumerated() {
+    // .enumerated seems very slow
+
+    for sidx in 0..<indices.count {
+        let idx = indices[sidx]
         if idx < 0 || idx >= shape[sidx] {
             return -1
         }
