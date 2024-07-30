@@ -1327,7 +1327,7 @@ public func densityForProbe( probe:Probe, radius:Double, delta:Double, epsilon:D
 
         let num = (0..<3) .map { gmax[$0] - gmin[$0] + 1 }
 
-        var probeLinearCoords = [Double]()
+        var probeLinearCoords = [Vector]()
 
         var globalIndices = [Int]() 
 
@@ -1339,73 +1339,34 @@ public func densityForProbe( probe:Probe, radius:Double, delta:Double, epsilon:D
                 
                 for ix in gmin[0]...gmax[0] {
                     let x = limits[0][0] + Double(ix)*griddeltas[0]
-                    probeLinearCoords += [x, y, z]
+                    probeLinearCoords.append(Vector([x,y,z]))
                     globalIndices.append(indexFromIndices( [iz,iy,ix],  shape:gridShape, strides:gridStrides ))
                 }
             }
         }
 
-        let probeGrid = Matrix<Double>( [num[2],num[1],num[0],3], content:probeLinearCoords )
+        let dists = probeLinearCoords .map { $0.dist(probe.center) }
 
-        let probeDense = Matrix<Double>( [num[2],num[1],num[0]] )
-        
+        var density = Array(repeating:0.0, count:dists.count )
 
-        let centerMat = Matrix<Double>([3], content:probe.center.coords )
+        let A = -1.0 / (delta + epsilon)
+        let B = (radius + epsilon)/(delta + epsilon)
 
-        var disp:Matrix<Double>?
-
-        do {
-            disp = try cdist(probeGrid, centerMat)
-            //print("probeGridshape = \(disp!.getShape()), disp shape = \(disp!.getShape())")
-        }
-        catch {
-            print("unexpected error in cdist for probe-grid distance")
-            return ([Double](),[Int]())
-        }
-
-        let mask0 = Mask.compare( disp! ) { $0 < (radius - delta) }
-        let mask1 = Mask.compare( disp! ) { $0 > (radius + epsilon) }
-
-        var mask2:Mask?
-
-        do {
-            mask2 = try mask0.logical_not().logical_and(mask1.logical_not())
-        }
-        catch {
-            print("exception in making mask")
-            return ([Double](),[Int]())
-        }
-
-        let alpha = -1.0/(delta + epsilon)
-        let beta = (radius + epsilon)/(delta + epsilon)
-
-        var BETA = Matrix<Double>(probeDense.getShape())
-        BETA.ones()
-        BETA =  try! BETA.multiply(beta)
-
-        do {
-            try probeDense.setValueForMask(mask0, 1.0)
-            try probeDense.setValueForMask(mask1, 0.0)
-        }
-        catch {
-            print("exception in probeDense setValue using mask0 and mask1, probeDense shape = \(probeDense.getShape())")
-            return ([Double](),[Int]())
-        }
-
-        var transition:Matrix<Double>?
-
-        do {
-            transition = try disp!.multiply(alpha).add(BETA)
-            try probeDense.setValueForMask(mask2!,transition!)
-        }
-        catch {
-            print("exception in probeDense setValue using transition and mask2, probeDense shape = \(probeDense.getShape()), transition shape = \(transition!.getShape())")
-            return ([Double](),[Int]())
+        for k in 0..<dists.count {
+            if dists[k] < radius - delta {
+                density[k] = 1.0
+            }
+            else if dists[k] > radius + epsilon {
+                density[k] = 0.0
+            }
+            else {
+                density[k] = A*dists[k] + B
+            }
         }
 
         // 
 
-        return (probeDense.storage, globalIndices)
+        return (density, globalIndices)
 
 
     }

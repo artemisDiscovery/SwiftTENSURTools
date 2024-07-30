@@ -668,7 +668,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
         let testaxis = AXES.Z
 
         do {
-            tridata = try generateTriangulation( probes:probes, probeRadius:probeRad, gridspacing:0.15, 
+            tridata = try generateTriangulation( probes:probes, probeRadius:probeRad, gridspacing:0.4, 
             densityDelta:0.1, densityEpsilon:0.1, isoLevel:1.0, numthreads:10, axis:testaxis) 
         }
         catch {
