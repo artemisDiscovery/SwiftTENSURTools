@@ -1109,11 +1109,11 @@ public func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Dou
 }
 
 public class Probe {
-    var center:Vector
-    var proberadius:Double
-    var atoms:[Int]
-    var singleton:Bool
-    var clockwisecontour:Bool
+    public var center:Vector
+    public var proberadius:Double
+    public var atoms:[Int]
+    public var singleton:Bool
+    public var clockwisecontour:Bool
 
     init(center:Vector, radius:Double, atoms:[Int], singleton:Bool, clockwise:Bool) {
 
