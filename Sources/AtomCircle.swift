@@ -1559,6 +1559,24 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
                         _ = data! .map { datacount += $0.0.count }
                         let time1 = Date().timeIntervalSince1970
                         print("leave thread \(tidx), time = \(time1 - time0), number probes = \(probesForThread[tidx].count), data size = \(datacount)")
+                        // adding this for some debugging info - something suddenly went wrong for no apparent reason
+                        let tots = data! .map { $0.0 . reduce( 0.0, + ) }
+                        let totdens = tots .reduce( 0.0, + )
+                        print("total density accumulated by thread \(tidx) = \(totdens)")
+
+                        if totdens == 0.0 {
+                            print("WARNING, total density for thread \(tidx) is zero ")
+                            print("Probes for this thread : ")
+                            for probe in probesForThread[tidx] {
+                                var str = ""
+                                str += "\(probe.center.coords[0]) , \(probe.center.coords[1]) , \(probe.center.coords[2])"
+                                for atom in probe.atoms {
+                                    str += " \(atom)"
+                                }
+                                print( str )
+                            }
+                        }
+                        
                         group.leave()
 
                         
@@ -1671,7 +1689,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
         let slice_ranges = [ ranges[2], ranges[1], ranges[0] ]
 
-        print("for thread \(ithread), ranges = \(ranges), gridverticesForThread = \(gridverticesForThread), limitsForThread = \(limitsForThread)")
+        print("for thread \(ithread), ranges = \(ranges)")
 
         do {
             theslice = try gridDensity.slice(slice_ranges)
@@ -1688,7 +1706,10 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
     }
 
-
+    for ithread in 0..<nummcthreads {
+        print("for thread \(ithread), gridverticesForThread = \(gridverticesForThread[ithread]), limitsForThread = \(limitsForThread[ithread])")
+    }
+    
 
     var MCBLOCKS = Array<([Vector],[Vector],[[Int]])?>(repeating:nil, count:nummcthreads )
 
