@@ -1317,7 +1317,12 @@ public func densityForProbe( probe:Probe, radius:Double, delta:Double, epsilon:D
         let gcenter = (0..<3) .map { Int((center.coords[$0] - limits[$0][0])/griddeltas[$0]) }
 
         let gmin = (0..<3) .map { max(gcenter[$0] - gradii[$0], 0) }
-        let gmax = (0..<3) .map { min(gcenter[$0] + gradii[$0], gridShape[$0]) }
+        // this is not correct - gridshape corresponds to z, y, x, here we are working in x, y, z order
+        //let gmax = (0..<3) .map { min(gcenter[$0] + gradii[$0], gridShape[$0]) }
+
+        let gridShape_org = [ gridShape[2], gridShape[1], gridShape[0] ]
+
+        let gmax = (0..<3) .map { min(gcenter[$0] + gradii[$0], gridShape_org[$0]) }
 
         for k in 0..<3 {
             if gmax[k] < gmin[k] {
