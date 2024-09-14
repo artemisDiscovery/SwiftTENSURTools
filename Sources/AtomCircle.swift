@@ -1494,7 +1494,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
     for j in 0..<3 {
         let axiscoords = (0..<probes.count) .map { linearcoords[3*$0 + j] }
-        spans.append([axiscoords.min()! - 1.5*probeRadius, axiscoords.max()! + 1.5*probeRadius])
+        spans.append([axiscoords.min()! - 2.0*probeRadius, axiscoords.max()! + 2.0*probeRadius])
     }
 
 
