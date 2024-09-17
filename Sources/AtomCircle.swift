@@ -40,9 +40,6 @@ public class AtomCircle {
 
         let newarc = exposedArc(pstart, pend, othercircle, othercircle, self )
         
-        //print("updating exposure for atom \(atom)")
-        //print("current count = \(exposure.count), newarc =  ")
-        //print("\(newarc.str())")
 
         if exposure.count == 0 && !removed {
             exposure.append(newarc)
@@ -56,14 +53,9 @@ public class AtomCircle {
         }
 
         exposure = newexposure
-        //Swift.print("new exposure atom \(self.atom) : ")
-        //for arc in exposure {
-        //    print(arc.str())
-        //}
 
         if exposure.count == 0 {
             self.removed = true
-            //Swift.print("in updateexposure, remove center at atom \(self.atom)")
         }
 
 
@@ -1310,10 +1302,10 @@ public func indexFromIndices( _ indices:[Int],  shape:[Int], strides:[Int] )  ->
 public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsilon:Double, 
     griddeltas:[Double], limits:[[Double]], gridShape:[Int], gridStrides:[Int] ) -> [Double] {
 
-        print("in density for probes, have \(probes.count) probes, limits = \(limits) , gridshape = \(gridShape), griddeltas = \(griddeltas), gridstrides = \(gridStrides)")
+    
         var linearDensity = Array( repeating:0.0, count:gridShape[0]*gridShape[1]*gridShape[2] )
 
-        print("linearDensity, size = \(linearDensity.count)")
+        
         
         let gradii = griddeltas .map { Int(radius/$0) + 1 }
 
@@ -1360,10 +1352,7 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsil
             let dists = probeLinearCoords .map { $0.dist(probe.center) }
 
             for (d,idx) in zip(dists,probeLinearIndices) {
-                if idx >= linearDensity.count {
-                    print("attempt to access idx = \(idx), size = \(linearDensity.count)")
-                    continue
-                }
+                
                 if d < radius - delta {
                     linearDensity[idx] += 1.0
                 }
