@@ -1307,71 +1307,78 @@ public func indexFromIndices( _ indices:[Int],  shape:[Int], strides:[Int] )  ->
 // This returns for argument probe position a list of density values and 
 // offsets in the original grid storage
 
-public func densityForProbe( probe:Probe, radius:Double, delta:Double, epsilon:Double, 
-    griddeltas:[Double], limits:[[Double]], gridShape:[Int], gridStrides:[Int] ) -> ([Double], [Int]) {
+public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsilon:Double, 
+    griddeltas:[Double], limits:[[Double]], gridShape:[Int], gridStrides:[Int] ) -> [Double] {
 
+        print("in density for probes, have \(probes.count) probes, limits = \(limits) , gridshape = \(gridShape), griddeltas = \(griddeltas), gridstrides = \(gridStrides)")
+        var linearDensity = Array( repeating:0.0, count:gridShape[0]*gridShape[1]*gridShape[2] )
+
+        print("linearDensity, size = \(linearDensity.count)")
+        
         let gradii = griddeltas .map { Int(radius/$0) + 1 }
-
-        let center = probe.center
-
-        let gcenter = (0..<3) .map { Int((center.coords[$0] - limits[$0][0])/griddeltas[$0]) }
-
-        let gmin = (0..<3) .map { max(gcenter[$0] - gradii[$0], 0) }
-        // this is not correct - gridshape corresponds to z, y, x, here we are working in x, y, z order
-        //let gmax = (0..<3) .map { min(gcenter[$0] + gradii[$0], gridShape[$0]) }
-
-        let gridShape_org = [ gridShape[2], gridShape[1], gridShape[0] ]
-
-        let gmax = (0..<3) .map { min(gcenter[$0] + gradii[$0], gridShape_org[$0]) }
-
-        for k in 0..<3 {
-            if gmax[k] < gmin[k] {
-                return ([Double](),[Int]())
-            }
-        }
-
-        let num = (0..<3) .map { gmax[$0] - gmin[$0] + 1 }
-
-        var probeLinearCoords = [Vector]()
-
-        var globalIndices = [Int]() 
-
-        for iz in gmin[2]...gmax[2] {
-            let z = limits[2][0] + Double(iz)*griddeltas[2]
-            
-            for iy in gmin[1]...gmax[1] {
-                let y = limits[1][0] + Double(iy)*griddeltas[1]
-                
-                for ix in gmin[0]...gmax[0] {
-                    let x = limits[0][0] + Double(ix)*griddeltas[0]
-                    probeLinearCoords.append(Vector([x,y,z]))
-                    globalIndices.append(indexFromIndices( [iz,iy,ix],  shape:gridShape, strides:gridStrides ))
-                }
-            }
-        }
-
-        let dists = probeLinearCoords .map { $0.dist(probe.center) }
-
-        var density = Array(repeating:0.0, count:dists.count )
 
         let A = -1.0 / (delta + epsilon)
         let B = (radius + epsilon)/(delta + epsilon)
 
-        for k in 0..<dists.count {
-            if dists[k] < radius - delta {
-                density[k] = 1.0
+        for probe in probes {
+
+            let center = probe.center
+
+            let gcenter = (0..<3) .map { Int((center.coords[$0] - limits[$0][0])/griddeltas[$0]) }
+
+            let gmin = (0..<3) .map { max(gcenter[$0] - gradii[$0], 0) }
+            let gmax = (0..<3) .map { min(gcenter[$0] + gradii[$0], gridShape[$0]) }
+
+            // get ranges, check for probe off grid
+
+            for k in 0..<3 {
+                if gmax[k] < gmin[k] {
+                    continue
+                }
             }
-            else if dists[k] > radius + epsilon {
-                density[k] = 0.0
+
+            var probeLinearCoords = [Vector]()
+            var probeLinearIndices = [Int]()
+            
+            
+            //print("gmin, gmax = \(gmin) , \(gmax)")
+
+            for iz in gmin[2]...gmax[2] {
+                let z = limits[2][0] + Double(iz)*griddeltas[2]
+                for iy in gmin[1]...gmax[1] {
+                    let y = limits[1][0] + Double(iy)*griddeltas[1]
+                    for ix in gmin[0]...gmax[0] {
+                        let offset = ix*gridStrides[0] + iy*gridStrides[1] + iz
+                        let x = limits[0][0] + Double(ix)*griddeltas[0]
+                        probeLinearCoords.append(Vector([x,y,z]))
+                        probeLinearIndices.append(offset)
+                    }
+                }
+
             }
-            else {
-                density[k] = A*dists[k] + B
+
+            let dists = probeLinearCoords .map { $0.dist(probe.center) }
+
+            for (d,idx) in zip(dists,probeLinearIndices) {
+                if idx >= linearDensity.count {
+                    print("attempt to access idx = \(idx), size = \(linearDensity.count)")
+                    continue
+                }
+                if d < radius - delta {
+                    linearDensity[idx] += 1.0
+                }
+                else if d <= radius + epsilon {
+                    linearDensity[idx] += A*d + B
+                }
             }
+
+
+
         }
 
         // 
 
-        return (density, globalIndices)
+        return linearDensity
 
 
     }
@@ -1505,9 +1512,6 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
     print("\ngridvertices : \(gridvertices)  griddeltas : \(griddeltas)")
 
-    // compute parameters for subgrids (numdivision in number)
-    // need limits along each axis, number of grid intervals
-
 
 
     // allot probes to nthreads
@@ -1529,15 +1533,22 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
     // Get densities for probes by thread 
 
-    var DENSITYBLOCKS = [[([Double],[Int])]]()
+    // introduce major change - density blocks now will use X-Y-Z coordinate ordering, so do not need to do 
+    // time-consuming operation of mapping every probe's local grid coordinates 
+    // 
+    // add into grid with normal expectation (Z-coord changing fastest), then use new transpose operation 
+    // introduced into MathTools
+
+    
 
     let group = DispatchGroup() 
 
-    let gridShape = [ gridvertices[2], gridvertices[1], gridvertices[0] ]
+    let gridShape = [ gridvertices[0], gridvertices[1], gridvertices[2] ]
 
     let gridDensity = Matrix<Double>(gridShape)
 
     let gridStrides = gridDensity.getStrides()
+
 
     for tidx in 0..<numthreads {
 
@@ -1552,19 +1563,20 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
                         let time0 = Date().timeIntervalSince1970
 
                         
-                        data = probesForThread[tidx] .map { densityForProbe( probe:$0, radius:probeRadius, delta:densityDelta, 
-                            epsilon:densityEpsilon, griddeltas:griddeltas, limits:spans, gridShape:gridShape, gridStrides:gridStrides )}
+                        let density =  densityForProbes( probes:probesForThread[tidx], radius:probeRadius, delta:densityDelta, 
+                            epsilon:densityEpsilon, griddeltas:griddeltas, limits:spans, gridShape:gridShape, gridStrides:gridStrides )
                         
                         
                         blocksQueue.sync {
-                            DENSITYBLOCKS.append(data!)
+                            print("merge density vector from thread \(tidx)")
+
+                            (0..<gridDensity.storage.count) .map { gridDensity.storage[$0] += density[$0]}
                         }
 
-                        var datacount = 0
-                        _ = data! .map { datacount += $0.0.count }
                         let time1 = Date().timeIntervalSince1970
-                        print("leave thread \(tidx), time = \(time1 - time0), number probes = \(probesForThread[tidx].count), data size = \(datacount)")
+                        print("leave thread \(tidx), time = \(time1 - time0), number probes = \(probesForThread[tidx].count)")
                         // adding this for some debugging info - something suddenly went wrong for no apparent reason
+                        /*
                         let tots = data! .map { $0.0 . reduce( 0.0, + ) }
                         let totdens = tots .reduce( 0.0, + )
                         print("total density accumulated by thread \(tidx) = \(totdens)")
@@ -1581,6 +1593,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
                                 print( str )
                             }
                         }
+                        */
                         
                         group.leave()
 
@@ -1594,297 +1607,28 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
     // Add probe densities into grid 
 
-    print("\nadd probe densities into grid ...")
+    // NOTE, for sanity's sake, I will feed marching cubes the transpose, so I have Z, Y, X densities;
+    // 
+    // Other arguments should be OK
 
     let time0 = Date().timeIntervalSince1970
 
-    for block in DENSITYBLOCKS {
-        for data in block {
-            for (dens,gidx) in zip(data.0,data.1) {
-                gridDensity.storage[gidx] += dens
-            }
-        }
-        
-    }
+    let gridDensity_T = gridDensity.transpose()
 
     let time1 = Date().timeIntervalSince1970
 
-    print("adding data into grid time : \(time1 - time0)")
-    
-    // run marching cubes 
+    print("\ntime for density matrix transpose = \(time1 - time0)")
 
     print("\nenter marching cubes ...")
 
-    // divide along selected axis by number of threads
+    // As experiment, do not multithread, don't think I gain much once I need to stitch chunks together
 
-    var nummcthreads = min(numthreads, gridvertices[axis.rawValue]/mingridchunk)
+    let tri = runMarchingCubes( density:gridDensity_T, limits:spans, 
+                        griddeltas:griddeltas, gridvertices:gridvertices, isoLevel:isoLevel )
 
-    print("use \(nummcthreads) threads for marching cube")
 
-    let deltaGridC = gridvertices[axis.rawValue] / nummcthreads
 
-    var gridverticesForThread = [[Int]]()
-
-    var densityForThread = [Matrix<Double>]()
-
-    // just need lower limit
-
-    var limitsForThread = [[[Double]]]()
-
-    var marchingcubetime = 0.0
-
-    //for ithread in 0..<numthreads { 
-
-    
-    for ithread in 0..<nummcthreads {
-        let lowergridC = ithread*deltaGridC
-        var uppergridC = lowergridC + deltaGridC
-        if ithread == nummcthreads - 1 {
-            uppergridC = gridvertices[axis.rawValue] - 1
-        }
-
-        var glim = [Int]()
-
-        for ix in 0..<3 {
-            if ix == axis.rawValue {
-                glim.append((uppergridC - lowergridC + 1))
-            }
-            else {
-                glim.append(gridvertices[ix])
-            }
-        }
-
-        gridverticesForThread.append(glim)
-
-
-        let lowerC = spans[axis.rawValue][0] + Double(lowergridC)*griddeltas[axis.rawValue]
-        var upperC = spans[axis.rawValue][0] + Double(uppergridC)*griddeltas[axis.rawValue]
-        if ithread == nummcthreads - 1 {
-            upperC  = spans[axis.rawValue][0] + Double(gridvertices[axis.rawValue]-1)*griddeltas[axis.rawValue]
-        }
-
-        var lim = [[Double]]()
-
-        for ix in 0..<3 {
-            if ix == axis.rawValue {
-                lim.append([lowerC,upperC])
-            }
-            else {
-                lim.append(spans[ix])
-            }
-        }
-
-        limitsForThread.append(lim)
-
-        
-        var theslice:Matrix<Double>?
-
-        var ranges = [Range<Int>]()
-
-        for ix in 0..<3 {
-            if ix == axis.rawValue {
-                ranges.append( lowergridC..<(uppergridC+1) )
-            }
-            else {
-                ranges.append(0..<gridvertices[ix])
-            }
-        }
-
-        // remember X changes fastest, need to reverse ranges
-
-        let slice_ranges = [ ranges[2], ranges[1], ranges[0] ]
-
-        print("for thread \(ithread), ranges = \(ranges)")
-
-        do {
-            theslice = try gridDensity.slice(slice_ranges)
-        }
-        catch {
-            print("unexpected exception in Matrix.slice()")
-            print("caught error : \(error)")
-            exit(1)
-        }
-
-        
-        densityForThread.append( theslice! )
-
-
-    }
-
-    for ithread in 0..<nummcthreads {
-        print("for thread \(ithread), gridverticesForThread = \(gridverticesForThread[ithread]), limitsForThread = \(limitsForThread[ithread])")
-    }
-    
-
-    var MCBLOCKS = Array<([Vector],[Vector],[[Int]])?>(repeating:nil, count:nummcthreads )
-
-    //for tidx in 0..<numthreads {
-    for tidx in 0..<nummcthreads {
-
-            print("enter marching cube thread \(tidx)")
-    
-            group.enter()
-
-            computeQueue.async {
-
-
-                    let time0 = Date().timeIntervalSince1970
-
-                    
-                    let tri = runMarchingCubes( density:densityForThread[tidx], limits:limitsForThread[tidx], 
-                        griddeltas:griddeltas, gridvertices:gridverticesForThread[tidx], isoLevel:isoLevel )
-                    
-                    
-                    blocksQueue.sync {
-                        MCBLOCKS[tidx] = tri
-                    }
-                    
-                    let time1 = Date().timeIntervalSince1970
-                    
-                    print("leave marching cube thread \(tidx), time = \(time1 - time0), # vertices = \(tri.0.count), # faces = \(tri.0.count)")
-                    marchingcubetime += time1 - time0
-                    group.leave()
-
-                    
-                }
-
-            
-    } 
-
-    group.wait()
-
-    // need to combine using matching vertices at boundaries
-
-    var MERGEVERTICES = [Vector]()
-    var MERGENORMALS = [Vector]()
-    var MERGEFACES = [[Int]]()
-
-    var topVertices = [(Int,Vector)]()
-    // translate just boundary vertices to existing offsets
-    var translateBottomToTop = Dictionary<Int,Int>()
-    // translate all vertices for thread to global offsets
-    var translate = Dictionary<Int,Int>()
-    
-
-    var Ctop = 1.0e12
-
-    for tidx in 0..<nummcthreads {
-        let threadVERTICES = MCBLOCKS[tidx]!.0
-        let threadNORMALS = MCBLOCKS[tidx]!.1
-        let threadFACES = MCBLOCKS[tidx]!.2
-
-        print("THREAD \(tidx), # VERTICES = \(threadVERTICES.count)")
-        print("CURRENT # MERGED VERTICES = \(MERGEVERTICES.count)")
-
-        if tidx == 0 {
-            MERGEVERTICES += threadVERTICES
-            MERGENORMALS += threadNORMALS
-            MERGEFACES += threadFACES
-            Ctop = limitsForThread[tidx][axis.rawValue][1]
-            
-            topVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[axis.rawValue] - Ctop) < 0.00000001 } 
-            //print("for thread \(tidx), Ztop = \(Ztop), # top vertices = \(topVertices.count)")
-            // initialize translate
-
-            // for first chunk, offsets need no adjustmet
-           
-            continue
-        }
-
-        // vertices at boundary, upper limit of MERGEVERTICES
-
-        let Cbottom = limitsForThread[tidx][axis.rawValue][0]
-        let bottomVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[axis.rawValue] - Cbottom) < 0.00000001 }
-
-
-        var topCoords = [Double]()
-       
-        // topVertices has correct offsets for vertices at top of prevous chunk
-
-        let topIndices = topVertices .map { $0.0 }
-
-        _ = topVertices .map { topCoords += $0.1.coords }
-
-        let topCoordMat = Matrix<Double>([topVertices.count,3], content:topCoords)
-
-        var bottomCoords = [Double]()
-       
-        let bottomIndices = bottomVertices .map { $0.0 }
-
-        _ = bottomVertices .map { bottomCoords += $0.1.coords }
-
-        let bottomCoordMat = Matrix<Double>([bottomVertices.count,3], content:bottomCoords)
-
-        if topVertices.count != bottomVertices.count {
-            print("error, number of vertices at max axis coord or previous grid chunk \(topVertices.count) not equal to number at coord min of next \(bottomVertices.count)")
-        }
-
-
-        var dists:Matrix<Double>?
-
-        do {
-            dists = try cdist(bottomCoordMat, topCoordMat)
-        }
-        catch {
-            print("unexpected exception in cdist")
-        } 
-
-        let mask = Mask.compare( dists! ) { $0 < 0.00000001 }
-
-        let pairs = mask.nonzero()
-
-        // current topIndices has correct offsets
-
-        translateBottomToTop = [Int:Int]()
-
-        _ = pairs .map { translateBottomToTop[bottomIndices[$0[0]]] = topIndices[$0[1]] }
-
-
-        var accum = MERGEVERTICES.count
-
-
-        var keepVERTICES = [Vector]()
-        var keepNORMALS = [Vector]()
-
-        var skip = 0
-        var new = 0
-
-        translate = [Int:Int]()
-
-        for offset in 0..<threadVERTICES.count {
-            if translateBottomToTop[offset] != nil {
-                translate[offset] = translateBottomToTop[offset]!
-                skip += 1
-                
-            }
-            else {
-                keepVERTICES.append(threadVERTICES[offset])
-                keepNORMALS.append(threadNORMALS[offset])
-                translate[offset] = accum 
-                accum += 1
-                new += 1
-            }
-        }
-
-        let keepFACES = threadFACES .map { [translate[$0[0]]!, translate[$0[1]]!, translate[$0[2]]!] }
-
-        MERGEVERTICES += keepVERTICES
-        MERGENORMALS += keepNORMALS
-        MERGEFACES += keepFACES
-
-
-        Ctop = limitsForThread[tidx][axis.rawValue][1]
-
-        topVertices = threadVERTICES.enumerated() .filter { abs($0.element.coords[axis.rawValue] - Ctop) < 0.00000001 }
-
-        topVertices = topVertices .map { ( translate[$0.0]!, $0.1 )}
-
-
-
-    }
-
-
-    return (MERGEVERTICES,MERGENORMALS,MERGEFACES)
+    return tri
 
 }
 

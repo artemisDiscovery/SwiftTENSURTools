@@ -464,7 +464,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
             proberad:probeRad, minaxiscoord:mincoord, layerdelta:0.5, axis:AXES.X, numthreads:1 )
             
         // Get all atom circles with X 
-        /*
+        
         var atomcircles = circleLayers.objects as! [AtomCircle]
 
         let X = 26.5
@@ -474,11 +474,11 @@ final class SwiftTENSURToolsTests: XCTestCase {
         print("have \(layercircles.count) circles for layer at \(X)")
 
 
-        print("layer circle data ---")
+        //print("layer circle data ---")
 
-        for circle in layercircles {
-            print(circle.str())
-        }
+        //for circle in layercircles {
+        //    print(circle.str())
+        //}
 
         for i in 0..<(layercircles.count-1) {
             for j in (i+1)..<layercircles.count {
@@ -517,12 +517,12 @@ final class SwiftTENSURToolsTests: XCTestCase {
         let UP = axisUP[AXES.X.rawValue]
         let RIGHT = axisRIGHT[AXES.X.rawValue]
 
-        print("singleton circle")
+        //print("singleton circle")
 
         for circle in layercircles {
             if circle.center.coords[UP] > 5.0 && circle.center.coords[RIGHT] < 18.0 {
                 print(circle.str())
-                print("exposure: \(circle.exposure.count)")
+                //print("exposure: \(circle.exposure.count)")
             }
         }
 
@@ -536,14 +536,14 @@ final class SwiftTENSURToolsTests: XCTestCase {
         }
 
         if contour != nil {
-            print("CONTOUR, first round ----- ")
-            print(contour!.str(verbose:true))
+            //print("CONTOUR, first round ----- ")
+            //print(contour!.str(verbose:true))
         }
         else {
             print("contour failed first round")
         }
 
-        print("\ncontour python ...\n")
+        //print("\ncontour python ...\n")
 
         //let text = printPython( layercircles, contour!.arcsInOrder)
 
@@ -552,20 +552,20 @@ final class SwiftTENSURToolsTests: XCTestCase {
         // check for removed arcs - OK working now
 
         
-        print("removed circles/arcs ---")
+        //print("removed circles/arcs ---")
 
         for circle in layercircles {
             if circle.removed {
-                print("removed circle at atom \(circle.atom)")
+                //print("removed circle at atom \(circle.atom)")
                 continue
             }
             else {
-                print("retained circle at atom \(circle.atom)")
+                //print("retained circle at atom \(circle.atom)")
             }
             for arc in circle.exposure {
                 if arc.removed {
-                    print("removed arc")
-                    print(arc.str())
+                    //print("removed arc")
+                    //print(arc.str())
                 }
             }
         }
@@ -609,7 +609,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
         // Get all atomcircles inside another and remove 
     
 
-        let atomcircles = circleLayers.objects as! [AtomCircle]
+        atomcircles = circleLayers.objects as! [AtomCircle]
         var centers = [Double]() 
         var centerradii = atomcircles.map { $0.radius }
 
@@ -622,7 +622,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
         for lidx in 0..<circleLayers.layerBits.count {
             let lb = circleLayers.layerBits[lidx]
             if lb == nil {
-                print("layer \(lidx) : nil ")
+                //print("layer \(lidx) : nil ")
             }
             else {
                 let indices = lb!.indices()
@@ -630,12 +630,12 @@ final class SwiftTENSURToolsTests: XCTestCase {
                 let x = atomcircles[first].center.coords[0]
                 let y = atomcircles[first].center.coords[1]
                 let z = atomcircles[first].center.coords[2]
-                print("layer \(lidx) : \(lb!.indices().count) atom circles, center at \(x), \(y), \(z) ")
+                //print("layer \(lidx) : \(lb!.indices().count) atom circles, center at \(x), \(y), \(z) ")
             }
             
         }
 
-        */
+        
         let surfdata = generateSurfaceProbes( coordinates:coordinates, radii:radii, probeRadius:probeRad, levelspacing:0.5, minoverlap:0.5, numthreads:10,
                          skipCCWContours:true )
 
