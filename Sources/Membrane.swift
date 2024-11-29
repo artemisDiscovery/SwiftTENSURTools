@@ -16,7 +16,7 @@ public class UnitCell {
     var inverseindices:[Int:Int]?
 
 
-    init(_ origin:Vector, _ dimensions:[Vector], _ buffer:[Double], _ membraneaxis:AXES )  {
+    public init(_ origin:Vector, _ dimensions:[Vector], _ buffer:[Double], _ membraneaxis:AXES )  {
         self.origin = origin
         self.dimensions = dimensions
         // note that unit vector is an optional
