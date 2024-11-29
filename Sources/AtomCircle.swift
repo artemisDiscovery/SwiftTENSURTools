@@ -9,6 +9,36 @@ let computeQueue = DispatchQueue( label:"compute", attributes: .concurrent )
 let blocksQueue = DispatchQueue( label:"blocks" )
 
 
+
+// try str.write(to: URL(fileURLWithPath:"probes.txt"), atomically: true, encoding: String.Encoding.utf8)
+
+public func exportAtoms( _ path:String, _ atompos:[Vector], _ radii:[Double], _ rgb:[Vector]?=nil ) throws {
+    var outstr = ""
+
+    for (aidx,coord) in atompos.enumerated() {
+        var r = 1.0
+        var g = 1.0
+        var b = 1.0
+        if rgb != nil {
+            r = rgb![aidx].coords[0]
+            g = rgb![aidx].coords[1]
+            b = rgb![aidx].coords[2]
+        }
+        outstr += "\(atompos[aidx].coords[0]) \(atompos[aidx].coords[1]) \(atompos[aidx].coords[2]) \(radii[aidx]) \(r) \(g) \(b)\n"
+    }
+
+    do {
+        try outstr.write(to: URL(fileURLWithPath:path), atomically: true, encoding: String.Encoding.utf8)
+    }
+    catch {
+        print("could not write spheres file \(path)")
+    }
+}
+
+
+
+
+
 public class AtomCircle {
 
     var center:Vector
@@ -17,7 +47,7 @@ public class AtomCircle {
     var axis:AXES
     var atom:Int
     var removed:Bool
-    var symmetryOp:String?
+
 
     init(_ atom:Int, _ center:Vector, _ radius:Double,  _ axis:AXES ) {
         self.atom = atom 
@@ -25,9 +55,9 @@ public class AtomCircle {
         self.radius = radius
         self.axis = axis
     
-        removed = false
-
-        symmetryOp = nil 
+        self.removed = false
+  
+        
     }
 
     func setRemoved(_ state:Bool) {
@@ -325,7 +355,7 @@ public struct Contour {
         
 
         for circle in circles {
-            if circle.removed {
+            if circle.removed  {
                 continue
             }
 
@@ -338,7 +368,7 @@ public struct Contour {
         for cidx in 0..<circles.count {
             let circle = circles[cidx]
                     
-            if circle.removed {
+            if circle.removed  {
                 continue 
             }
 
@@ -347,6 +377,7 @@ public struct Contour {
                 if arc.removed {
                     continue
                 }
+
                 initialArc = arc 
                 
                 break
@@ -360,7 +391,7 @@ public struct Contour {
 
         if initialArc == nil {
             //print("contour: no initial arc")
-            // this is actuall OK, return nil?
+            // 
             throw ContourError.noInitialArc
         }
 
@@ -422,15 +453,17 @@ public struct Contour {
                 throw ContourError.missingArcError
             }
 
+
             arcsInOrder.append(bestArc!)
 
+           
             if bestArc!.pend == initialArc!.pstart {
                 closed = true
-                //break
             }
-
+        
 
             let disp = bestArc!.pstart.sub(currentArc.pstart).unit()
+
             if prevdisp != nil {
                 var ang = acos(disp!.dot(prevdisp!))
                 // define positive angle as clockwise
@@ -510,6 +543,8 @@ let axisREF = [Vector([1.0,0.0,0.0]), Vector([0.0,1.0,0.0]), Vector([0.0,0.0,1.0
 let axisRIGHT = [1, 2, 0]
 let axisUP    = [2, 0, 1]
 
+let translateAXIS = [ AXES.X, AXES.Y, AXES.Z ]
+
 
 public class exposedArc {
 
@@ -533,6 +568,7 @@ public class exposedArc {
     var atomcircleEnd:AtomCircle
 
     var removed:Bool
+  
 
     
     init( _ start:Vector, _ end:Vector, _ startcircle: AtomCircle, _ endcircle: AtomCircle, _ parentcircle:AtomCircle ) {
@@ -575,6 +611,7 @@ public class exposedArc {
             }
 
                 removed = false 
+
  
 
     }
@@ -586,6 +623,7 @@ public class exposedArc {
     func setRemoved(_ state:Bool) {
         self.removed = state 
     }
+
 
     // return inside/outside for two vectors
 
@@ -681,6 +719,7 @@ public func intersectAtomCircles(_ circleA: AtomCircle, _ circleB: AtomCircle) {
         return
     }
 
+
     var uAB = circleB.center.sub(circleA.center)
     let dAB = uAB.length()
     let rA = circleA.radius
@@ -747,6 +786,10 @@ public func circlesForAtoms( atompos:Matrix<Double>, radii:[Double], proberad:Do
     let RIGHT = axisRIGHT[axis.rawValue]
     let UP = axisUP[axis.rawValue]
 
+    var units:[Vector]? = nil
+    var sizes:[Double]? = nil
+
+
     for aidx in limits[0]..<limits[1] {
         
         let catom = Vector((0..<3) .map { storage[3*aidx + $0]})
@@ -758,6 +801,7 @@ public func circlesForAtoms( atompos:Matrix<Double>, radii:[Double], proberad:Do
         let layerlo = Int(((caxis - augrad) - minCoord)/delta) + 1
         // upper layer contains top of augmented sphere, include it in range
         let layerhi = Int(((caxis + augrad) - minCoord)/delta) + 1
+
 
         for layer in layerlo..<layerhi {
             let layerc = minCoord + Double(layer)*delta 
@@ -772,10 +816,17 @@ public func circlesForAtoms( atompos:Matrix<Double>, radii:[Double], proberad:Do
             center.coords[axis.rawValue] = layerc
             center.coords[RIGHT] = catom.coords[RIGHT]
             center.coords[UP] = catom.coords[UP]
-            
-            data.append((AtomCircle(aidx, center, crad, axis ),layer))
+
+
+            // all atoms are in unit cell
+
+            let theCircle = AtomCircle(aidx, center, crad, axis )
+            data.append((theCircle,layer))
+
+
         }
     }
+
 
     return (data,thread)
         
@@ -786,14 +837,12 @@ func addBLOCK( _ BLOCKS: inout [[(AtomCircle,Int)]?], _ data:([(AtomCircle,Int)]
 }
 
 public func atomCirclesForLayers( atompos:Matrix<Double>, radii:[Double], 
-    proberad:Double, minaxiscoord:Double, layerdelta:Double, axis:AXES, numthreads:Int=1 ) -> LAYERS {
+    proberad:Double, minaxiscoord:Double, layerdelta:Double, axis:AXES, numthreads:Int=1) -> LAYERS {
 
     
     let shape = atompos.getShape()
     let numatoms = shape[0]
     
-    
-
 
     var LIMITS = [[Int]]()
 
@@ -904,7 +953,6 @@ public func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int])
         for p in pairs! {
             if p[0] < p[1] {
                 intersectAtomCircles( layercircles[p[0]], layercircles[p[1]] )
-
             }
         }
 
@@ -1129,6 +1177,7 @@ public func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:
 
     for arc in contour.arcsInOrder {
 
+
         let atomC = arc.parentcircle.atom
         let atomS = arc.atomcircleStart.atom 
         
@@ -1215,10 +1264,10 @@ public func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:
 
 }
 
-// returns probes for all axes, and levels for X, Y and Z
+// returns probes for all axes used, and levels for X, Y and Z
 
 public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRadius:Double, levelspacing:Double, minoverlap:Double, numthreads:Int,
-        skipCCWContours:Bool ) 
+        skipCCWContours:Bool,  unitcell:UnitCell?=nil ) 
         -> ([Probe],[[Double]]) {
 
 
@@ -1235,12 +1284,28 @@ public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRa
     var probes = [Probe]()
     var layers = [[Double]]()
 
-    for axis in [ AXES.X, AXES.Y, AXES.Z ] {
+    var useAXES = [ AXES.X, AXES.Y, AXES.Z ]
+
+    
+    if unitcell != nil {
+        useAXES = []
+        for ax in [ AXES.X, AXES.Y, AXES.Z ] {
+            if ax != unitcell!.membraneaxis {
+                useAXES.append(ax)
+            }
+        }
+    }
+    
+
+    for (naxis,axis) in useAXES.enumerated() {
 
         print("Axis : \(axis.rawValue)")
 
         let axiscoords = Vector( coordinates .map { $0.coords[axis.rawValue] } )
+
         let lowermin = axiscoords - radiiVec
+        
+        
         let lowlim = lowermin.coords.min()! - probeRadius 
 
         var minaxiscoord = ceil(abs(lowlim)/levelspacing) * levelspacing 
@@ -1373,7 +1438,8 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsil
     }
 
 
-public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddeltas:[Double], gridvertices:[Int], isoLevel:Double ) ->  ([Vector], [Vector], [[Int]]) {
+public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddeltas:[Double], gridvertices:[Int], isoLevel:Double ) 
+        ->  ([Vector], [Vector], [[Int]]) {
     let nx:UInt32 = UInt32(gridvertices[0])
     let ny:UInt32 = UInt32(gridvertices[1])
     let nz:UInt32 = UInt32(gridvertices[2])

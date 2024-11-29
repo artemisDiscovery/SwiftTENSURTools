@@ -226,6 +226,7 @@ public func processMembraneProbes( _ probes:[Probe], _ proberad:Double, _ unitce
 }
 
 
+
 public func processMembraneTri( _ VERTICES:[Vector], _ NORMALS:[Vector], _ FACES:[[Int]], _ unitcell:UnitCell ) 
         -> ([Vector], [Vector], [[Int]]) {
 
@@ -267,6 +268,49 @@ public func processMembraneTri( _ VERTICES:[Vector], _ NORMALS:[Vector], _ FACES
             crosselems.append(fidx)
         }
     } 
+
+    // not sure that initial approach of simply deleting elements at one side is adequate - what happens upon decimation??
+    // 
+    // instead add edges to make boundary elements conform to unit cell boundaries; means adding vertices, edges and faces
+
+    // for oriented element [0, 1, 2, 0] :
+    // if two vertices separated by u.c. boundary, insert a vertex between 
+    // e.g. if 2 and 0 on opp sides, have [0, 1, 2, 20, 0 ]
+    // have faces [0, 1, 2] + [0, 2, 20]
+    //
+    // if 0, 2 opp 1 : [0, 01, 1, 2, 20, 0], elements [0, 01, 20], [01, 1, 20], [1, 2, 20]
+    //
+    // special condition - does face contain unit cell 'corner' ? This gets really complicated; maybe see first if 
+    // smoothing and decimation looks OK with the ragged edge.
+
+    /*
+    var newfaces = [[Int]]()
+
+    for fidx in crosselems {
+
+        let insideverts =  FACES[fidx] .filter { vertexcellcoords[$0] <= 1.0 || vertexcellcoords[$0] >= 0.0 }
+        let outsideverts = FACES[fidx] .filter { vertexcellcoords[$0] > 1.0 || vertexcellcoords[$0] < 0.0 }
+
+        var extendedface = [Int]()
+
+        for i in 0..<3 {
+            let j = i < 2 ? i + 1 : 0
+
+            let vi = FACES[fidx][i]
+            let vj = FACES[fidx][j]
+
+            if (insideverts.contains(vi) && outsideverts.contains(vj)) || (insideverts.contains(vj) && outsideverts.contains(vi)) {
+                
+            }
+        }
+
+
+
+    } 
+
+    */
+
+
 
     // delete crossover elements at 'right' or 'top' of unit cell --- 
     // in brief, keep any element with all vertex coordinates less than 1.0
@@ -353,6 +397,7 @@ public func mergeSurfaceComponents( _ vertA:[Vector], _ vertB:[Vector], _ normA:
 
         return ( outverts, outnorms, outfaces ) 
     } 
+
 
 
 public func membraneSurfaceComponents( _ SUBVERTICES:[[Vector]], _ SUBNORMALS:[[Vector]], _ SUBFACES:[[[Int]]], 
