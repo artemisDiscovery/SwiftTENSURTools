@@ -1267,7 +1267,7 @@ public func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:
 // returns probes for all axes used, and levels for X, Y and Z
 
 public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRadius:Double, levelspacing:Double, minoverlap:Double, numthreads:Int,
-        skipCCWContours:Bool,  unitcell:UnitCell?=nil ) 
+        skipCCWContours:Bool,  unitcell:UnitCell?=nil, atomindices:[Int]?=nil ) 
         -> ([Probe],[[Double]]) {
 
 
@@ -1319,7 +1319,15 @@ public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRa
         
         let probedata = intersectingCirclesForLayers(atomcircleLAYERS, probeRadius:probeRadius, numthreads:numthreads, skipCCWContours:skipCCWContours )
 
-        let axisprobes = probedata.1
+        var axisprobes = probedata.1
+
+        // if atom indices defined, translate probe atom indices to original indices
+
+        if atomindices != nil {
+            for probe in axisprobes { 
+                probe.atoms = probe.atoms .map { atomindices![$0] }
+            }
+        }
 
         probes += axisprobes
 
