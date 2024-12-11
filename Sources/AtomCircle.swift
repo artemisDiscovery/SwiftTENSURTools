@@ -1378,7 +1378,7 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsil
     
         var linearDensity = Array( repeating:0.0, count:gridShape[0]*gridShape[1]*gridShape[2] )
 
-        
+        var clamped = Array( repeating:false, count:gridShape[0]*gridShape[1]*gridShape[2] )
         
         let gradii = griddeltas .map { Int(radius/$0) + 1 }
 
@@ -1414,6 +1414,7 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsil
                     let y = limits[1][0] + Double(iy)*griddeltas[1]
                     for ix in gmin[0]...gmax[0] {
                         let offset = ix*gridStrides[0] + iy*gridStrides[1] + iz
+                        if clamped[offset] { continue }
                         let x = limits[0][0] + Double(ix)*griddeltas[0]
                         probeLinearCoords.append(Vector([x,y,z]))
                         probeLinearIndices.append(offset)
@@ -1424,13 +1425,23 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsil
 
             let dists = probeLinearCoords .map { $0.dist(probe.center) }
 
+            // what it we clamp linear density near 1.0?
+
             for (d,idx) in zip(dists,probeLinearIndices) {
                 
                 if d < radius - delta {
                     linearDensity[idx] += 1.0
+                    if linearDensity[idx] >= 1.0 {
+                        linearDensity[idx] = 1.0
+                        clamped[idx] = true
+                    }
                 }
                 else if d <= radius + epsilon {
                     linearDensity[idx] += A*d + B
+                    if linearDensity[idx] >= 1.0 {
+                        linearDensity[idx] = 1.0
+                        clamped[idx] = true
+                    }
                 }
             }
 
