@@ -452,7 +452,7 @@ public struct Contour {
                 if arc.removed {
                     continue
                 }
-                let d = arc.pstart.sub(currentArc.pend).length()
+                let d = arc.pstart.sub(currentArc!.pend).length()
 
                 if d < bestDist {
                     bestArc = arc 
@@ -475,7 +475,7 @@ public struct Contour {
             }
         
 
-            let disp = bestArc!.pstart.sub(currentArc.pstart).unit()
+            let disp = bestArc!.pstart.sub(currentArc!.pstart).unit()
 
             if prevdisp != nil {
                 var ang = acos(disp!.dot(prevdisp!))
