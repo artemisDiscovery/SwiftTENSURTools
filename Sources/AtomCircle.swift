@@ -391,34 +391,43 @@ public struct Contour {
 
         if initialArc == nil {
 
-            if singletons.count > 0 {
-                return 
-            }
+            
             //print("contour: no initial arc")
             // 
-            throw ContourError.noInitialArc
+
+            if singletons.count == 0 {
+                throw ContourError.noInitialArc
+            }
+            
         }
 
 
-        var currentArc = initialArc!
+        var currentArc:exposedArc?
         
 
         //print("initial circle: ")
         //print(initialCircle!.str())
         //print("initial arc: ")
         //print(initialArc!.str())
-
-        arcsInOrder.append(initialArc!)
+        if initialArc != nil {
+            arcsInOrder.append(initialArc!)
+            currentArc = initialArc
+        }
+        
         
         var closed = false
         var accumAngle = 0.0
         var prevdisp:Vector? = nil
 
+        if initialArc == nil  {
+            closed = true
+        }
+
         while !closed {
         //for _ in 0..<10000 {
             //print("contour: current arc :")
             //print(currentArc.str())
-            let nextCircle = currentArc.atomcircleEnd
+            let nextCircle = currentArc!.atomcircleEnd
             
             if nextCircle.removed {
                 print("contour: expected circle removed")
