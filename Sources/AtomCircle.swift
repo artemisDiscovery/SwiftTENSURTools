@@ -390,6 +390,10 @@ public struct Contour {
         }
 
         if initialArc == nil {
+
+            if singletons.count > 0 {
+                return 
+            }
             //print("contour: no initial arc")
             // 
             throw ContourError.noInitialArc
@@ -798,7 +802,7 @@ public func circlesForAtoms( atompos:Matrix<Double>, radii:[Double], proberad:Do
         let augrad = radii[aidx] + proberad
 
         // bottom layer is below bottom of augmented sphere, so start one higher
-        let layerlo = Int(((caxis - augrad) - minCoord)/delta) + 1
+        let layerlo = Int(( (caxis - augrad) - minCoord) / delta) + 1
         // upper layer contains top of augmented sphere, include it in range
         let layerhi = Int(((caxis + augrad) - minCoord)/delta) + 1
 
