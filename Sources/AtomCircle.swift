@@ -1233,7 +1233,7 @@ public func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:
 
         let atoms = [circle.atom]
         let radius = circle.radius
-        let num = max( Int((2.0*acos(-1.0))/minsep), 4 )
+        let num = max( Int((2.0*acos(-1.0)*radius)/minsep), 4 )
         let delta = (2.0*acos(-1.0))/Double(num)
 
         var ref = Vector([0.0,0.0,0.0])
@@ -1246,10 +1246,12 @@ public func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:
 
         // start at 2*PI - delta, go all way to zero
 
-        let startang = 2.0*acos(-1.0) - delta
+        // why did I do this??
+        //let startang = 2.0*acos(-1.0) - delta
 
         for j in 0..<(num+1) {
-            let ang = startang - Double(j)*delta
+            //let ang = startang - Double(j)*delta
+            let ang = Double(j)*delta
             let pos = circle.center + (radius*cos(ang))*ref + (radius*sin(ang))*perp
             probes.append(Probe(center:pos, radius:probeRadius, atoms:atoms, singleton:true, clockwise:true))
         }
