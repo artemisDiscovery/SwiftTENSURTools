@@ -408,9 +408,9 @@ public struct Contour {
         //print(initialArc!.str())
 
         if initialArc != nil {
-
+            arcsInOrder.append(initialArc!)
         }
-        arcsInOrder.append(initialArc!)
+        
         
         var closed = false
         var accumAngle = 0.0
