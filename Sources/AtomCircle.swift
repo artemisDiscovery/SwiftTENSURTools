@@ -392,11 +392,14 @@ public struct Contour {
         if initialArc == nil {
             //print("contour: no initial arc")
             // 
-            throw ContourError.noInitialArc
+            if singletons.count == 0 {
+                throw ContourError.noInitialArc
+            }
+            
         }
 
-
-        var currentArc = initialArc!
+        var currentArc:exposedArc?
+        currentArc = initialArc
         
 
         //print("initial circle: ")
@@ -404,24 +407,32 @@ public struct Contour {
         //print("initial arc: ")
         //print(initialArc!.str())
 
+        if initialArc != nil {
+
+        }
         arcsInOrder.append(initialArc!)
         
         var closed = false
         var accumAngle = 0.0
         var prevdisp:Vector? = nil
 
+        if initialArc == nil {
+            // skip hooking up arcs
+            closed = true
+        }
+
         while !closed {
         //for _ in 0..<10000 {
             //print("contour: current arc :")
-            //print(currentArc.str())
-            let nextCircle = currentArc.atomcircleEnd
+            //print(currentArc!.str())
+            let nextCircle = currentArc!.atomcircleEnd
             
             if nextCircle.removed {
                 print("contour: expected circle removed")
                 //print("current circle :")
-                //print(currentArc.parentcircle.str())
+                //print(currentArc!.parentcircle.str())
                 //print("current arc :")
-                //print(currentArc.str())
+                //print(currentArc!.str())
                 //print("missing circle :")
                 //print(nextCircle.str())
                 throw ContourError.missingCircleError
@@ -439,7 +450,7 @@ public struct Contour {
                 if arc.removed {
                     continue
                 }
-                let d = arc.pstart.sub(currentArc.pend).length()
+                let d = arc.pstart.sub(currentArc!.pend).length()
 
                 if d < bestDist {
                     bestArc = arc 
@@ -462,7 +473,7 @@ public struct Contour {
             }
         
 
-            let disp = bestArc!.pstart.sub(currentArc.pstart).unit()
+            let disp = bestArc!.pstart.sub(currentArc!.pstart).unit()
 
             if prevdisp != nil {
                 var ang = acos(disp!.dot(prevdisp!))
@@ -1267,7 +1278,7 @@ public func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:
 // returns probes for all axes used, and levels for X, Y and Z
 
 public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRadius:Double, levelspacing:Double, minoverlap:Double, numthreads:Int,
-        skipCCWContours:Bool,  unitcell:UnitCell?=nil, atomindices:[Int]?=nil, debugAXES:[AXES]? ) 
+        skipCCWContours:Bool,  unitcell:UnitCell?=nil, atomindices:[Int]?=nil, debugAXES:[AXES]?=nil ) 
         -> ([Probe],[[Double]]) {
 
 

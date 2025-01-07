@@ -699,7 +699,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
 
         var surfdata = generateSurfaceProbes( coordinates:usecoordinates, radii:useradii, probeRadius:probeRad, 
                     levelspacing:0.5, minoverlap:0.5, numthreads:10, 
-                    skipCCWContours:true, unitcell:unitcell )
+                    skipCCWContours:true, unitcell:unitcell, debugAXES:nil)
 
         var probes = surfdata.0 
 
