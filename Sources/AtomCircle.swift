@@ -1267,7 +1267,7 @@ public func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:
 // returns probes for all axes used, and levels for X, Y and Z
 
 public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRadius:Double, levelspacing:Double, minoverlap:Double, numthreads:Int,
-        skipCCWContours:Bool,  unitcell:UnitCell?=nil, atomindices:[Int]?=nil ) 
+        skipCCWContours:Bool,  unitcell:UnitCell?=nil, atomindices:[Int]?=nil, debugAXES:[AXES]? ) 
         -> ([Probe],[[Double]]) {
 
 
@@ -1285,6 +1285,10 @@ public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRa
     var layers = [[Double]]()
 
     var useAXES = [ AXES.X, AXES.Y, AXES.Z ]
+
+    if debugAXES != nil {
+        useAXES = debugAXES!
+    }
 
     
     if unitcell != nil {
