@@ -849,7 +849,7 @@ func addBLOCK( _ BLOCKS: inout [[(AtomCircle,Int)]?], _ data:([(AtomCircle,Int)]
 }
 
 public func atomCirclesForLayers( atompos:Matrix<Double>, radii:[Double], 
-    proberad:Double, minaxiscoord:Double, layerdelta:Double, axis:AXES, numthreads:Int=1) -> LAYERS {
+    proberad:Double, minaxiscoord:Double, layerdelta:Double, axis:AXES, numthreads:Int=1, verbose:Bool=true) -> LAYERS {
 
     
     let shape = atompos.getShape()
@@ -877,11 +877,19 @@ public func atomCirclesForLayers( atompos:Matrix<Double>, radii:[Double],
 
     let group = DispatchGroup() 
 
+    if verbose {
+        print("\natomCirclesForLayers : have \(nchunks) of atom chunks to process")
+    }
+
     for ichunk in 0..<nchunks {
 
         group.enter() 
 
         computeQueue.async {
+
+            if verbose {
+                print("\tenter atomchunk \(ichunk)")
+            }
             let data = circlesForAtoms( atompos:atompos, radii:radii, proberad:proberad,
                 axis:axis, minCoord:minaxiscoord, delta:layerdelta, limits:LIMITS[ichunk], 
                 thread:ichunk ) 
@@ -892,6 +900,9 @@ public func atomCirclesForLayers( atompos:Matrix<Double>, radii:[Double],
 
             group.leave()
 
+            if verbose {
+                print("\tleave atomchunk \(ichunk)")
+            }
         }
 
         
@@ -979,7 +990,7 @@ public func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int])
 }
 
 
-public func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Double, numthreads:Int=1, skipCCWContours:Bool=false ) -> ([[Contour]],[Probe]) {
+public func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Double, numthreads:Int=1, skipCCWContours:Bool=false, verbose:Bool=true ) -> ([[Contour]],[Probe]) {
 
     // set limits using fraction of total number of circles
 
@@ -1056,9 +1067,17 @@ public func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Dou
 
     let group = DispatchGroup() 
 
+    if verbose {
+        print("\nhave \(LIMITS.count) chunks of atom circles to process")
+    }
+
     for ichunk in 0..<LIMITS.count {
 
         group.enter() 
+
+        if verbose {
+            print("\tenter chunk \(ichunk) of atom circles")
+        }
 
         computeQueue.async  {
             let data = intersectCirclesInLayerRange(circleLayers,LIMITS[ichunk]) 
@@ -1068,6 +1087,10 @@ public func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Dou
             }
 
             group.leave()
+
+            if verbose {
+                print("\tleave chunk \(ichunk) of atom circles")
+            }
 
         }
 
@@ -1281,7 +1304,7 @@ public func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:
 // returns probes for all axes used, and levels for X, Y and Z
 
 public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRadius:Double, levelspacing:Double, minoverlap:Double, numthreads:Int,
-        skipCCWContours:Bool,  unitcell:UnitCell?=nil, atomindices:[Int]?=nil, debugAXES:[AXES]?=nil ) 
+        skipCCWContours:Bool,  unitcell:UnitCell?=nil, atomindices:[Int]?=nil, debugAXES:[AXES]?=nil, verbose:Bool=true ) 
         -> ([Probe],[[Double]]) {
 
 
