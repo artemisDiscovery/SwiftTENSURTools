@@ -5,9 +5,12 @@ import SwiftMC33Lib
 
 import Dispatch
 
-let computeQueue = DispatchQueue( label:"compute", attributes: .concurrent )
-let blocksQueue = DispatchQueue( label:"blocks" )
+let computeQueue = DispatchQueue( label:"compute", attributes: .concurrent,
+ target:DispatchQueue.global(qos: .userInitiated))
+let blocksQueue = DispatchQueue( label:"blocks", qos: .userInitiated )
 
+let maxConcurrentOperations = 10 // Adjust based on container resources
+let concurrencyLimiter = DispatchSemaphore(value: maxConcurrentOperations)
 
 
 // try str.write(to: URL(fileURLWithPath:"probes.txt"), atomically: true, encoding: String.Encoding.utf8)
@@ -1079,14 +1082,21 @@ public func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Dou
             print("\tenter chunk \(ichunk) of atom circles")
         }
 
+        concurrencyLimiter.wait()
+
         computeQueue.async  {
+            defer {
+            concurrencyLimiter.signal() // Release semaphore when done
+            group.leave()
+            }
+
             let data = intersectCirclesInLayerRange(circleLayers,LIMITS[ichunk]) 
 
             blocksQueue.sync {
                 BLOCKS.append(data!)
             }
 
-            group.leave()
+    
 
             if verbose {
                 print("\tleave chunk \(ichunk) of atom circles")
