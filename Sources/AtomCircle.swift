@@ -854,7 +854,7 @@ func addBLOCK2( _ BLOCKS: inout [ ( [[AtomCircle]], [Int] )? ], _ data:( ( [[Ato
 
 
 public func atomCirclesForLayers( atompos:Matrix<Double>, radii:[Double], 
-    proberad:Double, minaxiscoord:Double, layerdelta:Double, axis:AXES, numthreads:Int=1, verbose:Bool=true) -> LAYERS {
+    proberad:Double, minaxiscoord:Double, layerdelta:Double, axis:AXES, numthreads:Int=1, verbose:Bool=false) -> LAYERS {
 
     
     let shape = atompos.getShape()
