@@ -5,12 +5,9 @@ import SwiftMC33Lib
 
 import Dispatch
 
-let computeQueue = DispatchQueue( label:"compute", attributes: .concurrent,
- target:DispatchQueue.global(qos: .userInitiated))
-let blocksQueue = DispatchQueue( label:"blocks", qos: .userInitiated )
+let computeQueue = DispatchQueue( label:"compute", attributes: .concurrent )
+let blocksQueue = DispatchQueue( label:"blocks" )
 
-let maxConcurrentOperations = 10 // Adjust based on container resources
-let concurrencyLimiter = DispatchSemaphore(value: maxConcurrentOperations)
 
 
 // try str.write(to: URL(fileURLWithPath:"probes.txt"), atomically: true, encoding: String.Encoding.utf8)
@@ -851,6 +848,11 @@ func addBLOCK( _ BLOCKS: inout [[(AtomCircle,Int)]?], _ data:([(AtomCircle,Int)]
     BLOCKS[data.1] = data.0
 }
 
+func addBLOCK2( _ BLOCKS: inout [ ( [[AtomCircle]], [Int] )? ], _ data:( ( [[AtomCircle]], [Int] ), Int)?  ) {
+    BLOCKS[data!.1] = data!.0
+}
+
+
 public func atomCirclesForLayers( atompos:Matrix<Double>, radii:[Double], 
     proberad:Double, minaxiscoord:Double, layerdelta:Double, axis:AXES, numthreads:Int=1, verbose:Bool=true) -> LAYERS {
 
@@ -927,7 +929,7 @@ public func atomCirclesForLayers( atompos:Matrix<Double>, radii:[Double],
     return circleLAYERS
 }
 
-public func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int]) -> ([[AtomCircle]],[Int])? {
+public func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int], thread:Int ) -> (([[AtomCircle]],[Int]),Int)? {
 
     let layerBits = circleLayers.layerBits
 
@@ -988,7 +990,11 @@ public func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int])
 
     }
 
-    return (returnCircles,returnLayerIndices)
+    var data:(([[AtomCircle]],[Int]),Int)?
+
+    data = ((returnCircles,returnLayerIndices),thread)
+
+    return data
 
 }
 
@@ -1065,8 +1071,8 @@ public func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Dou
     }
 
     //print("\ncumulative count = \(cumcount), compare to \(atomcircles.count) circles expected")
-
-    var BLOCKS = [([[AtomCircle]],[Int])]()
+    var BLOCKS:[([[AtomCircle]],[Int])?] = Array(repeating:nil, count:LIMITS.count)
+    //var BLOCKS = [([[AtomCircle]],[Int])]()
 
     let group = DispatchGroup() 
 
@@ -1082,21 +1088,14 @@ public func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Dou
             print("\tenter chunk \(ichunk) of atom circles")
         }
 
-        concurrencyLimiter.wait()
-
         computeQueue.async  {
-            defer {
-            concurrencyLimiter.signal() // Release semaphore when done
-            group.leave()
-            }
-
-            let data = intersectCirclesInLayerRange(circleLayers,LIMITS[ichunk]) 
+            let data = intersectCirclesInLayerRange(circleLayers,LIMITS[ichunk], thread:ichunk) 
 
             blocksQueue.sync {
-                BLOCKS.append(data!)
+                addBLOCK2(&BLOCKS, data)
             }
 
-    
+            group.leave()
 
             if verbose {
                 print("\tleave chunk \(ichunk) of atom circles")
@@ -1110,14 +1109,14 @@ public func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Dou
 
     group.wait()
 
-    BLOCKS = BLOCKS.sorted { $0.1[0] < $1.1[0] }
+    BLOCKS = BLOCKS.sorted { $0!.1[0] < $1!.1[0] }
 
     var sortedLayers = [Int]()
     var sortedCircles = [[AtomCircle]]()
 
     for block in BLOCKS {
-        sortedLayers += block.1
-        sortedCircles += block.0
+        sortedLayers += block!.1
+        sortedCircles += block!.0
     }
 
     //for lidx in 0..<sortedLayers.count {
