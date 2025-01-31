@@ -13,7 +13,7 @@ let package = Package(
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "git@github.com:artemisDiscovery/MathTools.git" , from: "1.0.21"),
+        .package(url: "git@github.com:artemisDiscovery/MathTools.git" , from: "1.0.22"),
         .package(url: "git@github.com:artemisDiscovery/SwiftMC33Lib.git" , from: "1.0.1"),
     ],
     targets: [
