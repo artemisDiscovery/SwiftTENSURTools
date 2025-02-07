@@ -1427,6 +1427,7 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsil
 
     
         var linearDensity = Array( repeating:0.0, count:gridShape[0]*gridShape[1]*gridShape[2] )
+        var linearMask = Array( repeating:true, count:gridShape[0]*gridShape[1]*gridShape[2] )
         
         let gradii = griddeltas .map { Int(radius/$0) + 1 }
 
@@ -1462,6 +1463,10 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsil
                     let y = limits[1][0] + Double(iy)*griddeltas[1]
                     for ix in gmin[0]...gmax[0] {
                         let offset = ix*gridStrides[0] + iy*gridStrides[1] + iz
+
+                        if !linearMask[offset] {
+                            continue
+                        }
                         
                         let x = limits[0][0] + Double(ix)*griddeltas[0]
                         probeLinearCoords.append(Vector([x,y,z]))
@@ -1481,12 +1486,14 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsil
                     linearDensity[idx] += 1.0
                     if linearDensity[idx] >= 1.0 {
                         linearDensity[idx] = 1.0
+                        linearMask[idx] = false
                     }
                 }
                 else if d <= radius + epsilon {
                     linearDensity[idx] += A*d + B
                     if linearDensity[idx] >= 1.0 {
                         linearDensity[idx] = 1.0
+                        linearMask[idx] = false
                     }
                 }
             }
