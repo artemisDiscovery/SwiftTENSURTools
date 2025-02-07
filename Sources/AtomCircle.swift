@@ -999,7 +999,7 @@ public func intersectCirclesInLayerRange( _ circleLayers:LAYERS, _ limits:[Int],
 }
 
 
-public func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Double, numthreads:Int=1, skipCCWContours:Bool=false, verbose:Bool=true ) -> ([[Contour]],[Probe]) {
+public func intersectingCirclesForLayers( _ circleLayers:LAYERS, probeRadius:Double, numthreads:Int=1, skipCCWContours:Bool=false, verbose:Bool=false ) -> ([[Contour]],[Probe]) {
 
     // set limits using fraction of total number of circles
 
