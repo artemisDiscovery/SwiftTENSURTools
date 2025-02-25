@@ -749,7 +749,7 @@ public func processMembraneTri( _ VERTICES_in:[Vector], _ NORMALS_in:[Vector], _
 
         let fn = faceNormal( fidx, VERTICES, FACES )
 
-        NORMALS.append(fn)
+        NORMALS.append(fn!)
 
         // expect total of two intersections ;
 
