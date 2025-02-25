@@ -18,7 +18,7 @@ func readCoordinateFile( _ path:String ) throws -> [Vector] {
         lines = try String(contentsOfFile:path).split { $0 .isNewline } .map { String($0) }
     }
     catch {
-        print("exception reading data file")
+        print("tion reading data file")
         throw tensurError.testImportError
     }
     
@@ -401,7 +401,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
     // https://pacugindre.medium.com/disable-xctests-on-swift-package-manager-quick-and-dirty-c69e94d8a2f0
 
 
-    func testMembrane() throws {
+    func donttestMembrane() throws {
 
         let buffer = [4.0,4.0,4.0]
         var unitcell = UnitCell(Vector([0.0,0.0,0.0]), 
@@ -586,7 +586,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
 
 
  
-    func donttestMembrane() throws {
+    func testMembrane() throws {
         var coordinates:[Vector]?
         var radii:[Double]?
 
@@ -627,7 +627,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
             [Vector([61.864 , 0.0 , 0.0]), Vector([0.0 , 61.453 , 0.0]), Vector([0.0 , 0.0 , 96.120])], 
             buffer, AXES.Z ) 
 
-        let probeRad = 1.58
+        let probeRad = 1.582785
 
         print("imported \(coordinates!.count) coordinates")
 
@@ -760,7 +760,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
     var NORMALS = tridata!.1
     var FACES = tridata!.2
 
-    var url = URL(fileURLWithPath: "./membrane_init.obj")
+    var url = URL(fileURLWithPath: "./membrane_init2.obj")
 
     var outstr = ""
 
@@ -789,7 +789,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
     NORMALS = procmembranetri.1
     FACES = procmembranetri.2
 
-    url = URL(fileURLWithPath: "./membrane_proc.obj")
+    url = URL(fileURLWithPath: "./membrane_proc2.obj")
 
     outstr = ""
 
