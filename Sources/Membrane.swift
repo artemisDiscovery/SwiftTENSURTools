@@ -175,7 +175,7 @@ public func membraneCoordinates(_ incoordinates:[Vector], _ inradii:[Double], _ 
 }
 
 public func processMembraneProbes( _ probes:[Probe], _ proberad:Double, _ unitcell:UnitCell ) 
-            -> [Probe] {
+            -> ([Probe],[Probe],[Probe]) {
 
     // ** in first step, remove probes that lie outside the unit cell ** 
     // I think this is counterproductive - I am potentially losing information
@@ -185,6 +185,8 @@ public func processMembraneProbes( _ probes:[Probe], _ proberad:Double, _ unitce
     // I may have been worrying about 'double counting' density, but in latest rev that is not possible
 
     var keepprobes = [Probe]()
+    var bufferPROBES = [Probe]() 
+    var totPROBES = [Probe]() 
 
 
     for probe in probes {
@@ -231,7 +233,7 @@ public func processMembraneProbes( _ probes:[Probe], _ proberad:Double, _ unitce
     let totPROBES = keepprobes + bufferPROBES
     */
 
-    return keepprobes
+    return (keepprobes, bufferPROBES, totPROBES)
 
 
 }

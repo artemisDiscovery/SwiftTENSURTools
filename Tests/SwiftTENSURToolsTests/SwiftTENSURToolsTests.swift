@@ -805,7 +805,9 @@ final class SwiftTENSURToolsTests: XCTestCase {
 
         var probes = surfdata.0 
 
-        let useprobes = processMembraneProbes( probes, probeRad, unitcell)
+        let membranerobes = processMembraneProbes( probes, probeRad, unitcell)
+
+        let useprobes = membranerobes.0
 
         //let keepprobes = procprobedata.1
         //let bufferProbes = procprobedata.2
