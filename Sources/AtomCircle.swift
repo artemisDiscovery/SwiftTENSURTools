@@ -1441,14 +1441,20 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsil
             let gcenter = (0..<3) .map { Int((center.coords[$0] - limits[$0][0])/griddeltas[$0]) }
 
             let gmin = (0..<3) .map { max(gcenter[$0] - gradii[$0], 0) }
-            let gmax = (0..<3) .map { min(gcenter[$0] + gradii[$0], gridShape[$0]) }
+            let gmax = (0..<3) .map { min(gcenter[$0] + gradii[$0], gridShape[$0]-1) }
 
             // get ranges, check for probe off grid
 
+            var offgrid = false
+
             for k in 0..<3 {
                 if gmax[k] < gmin[k] {
-                    continue
+                    offgrid = true
                 }
+            }
+
+            if offgrid {
+                continue
             }
 
             var probeLinearCoords = [Vector]()
@@ -1610,10 +1616,14 @@ public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddel
 }
 
 public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspacing:Double, 
-        densityDelta:Double, densityEpsilon:Double, isoLevel:Double, numthreads:Int, axis:AXES=AXES.Z, mingridchunk:Int=100) 
+        densityDelta:Double, densityEpsilon:Double, isoLevel:Double, numthreads:Int, axis:AXES=AXES.Z, mingridchunk:Int=100, unitcell:UnitCell?=nil) 
             throws -> ([Vector], [Vector], [[Int]]) {
            // -> throws ([[Double]], [[Int]])  {
 
+    // if we have unit cell, for "u/v" axes, must have whole number of grid divisions between origin of unitcell and lower bound of spans, 
+    // and between origin + dimension and upper bound of span ; decrease or increase span limit to achieve this
+    //
+    // ALSO need to use the griddeltas bundled with unit cell, which ensure a whole number of grid units inside unit cell
 
     let pcoords = probes .map { $0.center }
 
@@ -1626,16 +1636,56 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
     var spans = [[Double]]()
 
-    for j in 0..<3 {
-        let axiscoords = (0..<probes.count) .map { linearcoords[3*$0 + j] }
-        spans.append([axiscoords.min()! - 2.0*probeRadius, axiscoords.max()! + 2.0*probeRadius])
+    if unitcell != nil {
+
+        // remember buffer is in unit-cell dimensions
+
+        let buffer_real = (0..<3) .map { unitcell!.buffer[$0] * unitcell!.sizes[$0] }
+
+        for ax in 0..<3 {
+
+            let axiscoords = (0..<probes.count) .map { linearcoords[3*$0 + ax] }
+            var lower = axiscoords.min()! - 2.0*probeRadius
+            var upper = axiscoords.max()! + 2.0*probeRadius
+
+            // now constrain probes to fit in buffer, why not just make this also fit buffer, in non-unit-cell axis directions ??
+            
+            if ax != unitcell!.membraneaxis.rawValue {
+
+                lower = unitcell!.origin.coords[ax] - buffer_real[ax]
+                upper = unitcell!.origin.coords[ax] + unitcell!.sizes[ax] + buffer_real[ax]
+                print("\nfor axis \(ax) , lower = \(lower) , grid uc zero = \(-lower/unitcell!.deltas[ax]) , grid uc max = \((unitcell!.sizes[ax] - lower)/unitcell!.deltas[ax])")
+            }
+            print("\n\(ax) : span = \(lower) : \(upper)")
+            spans.append([lower,upper])
+        }
+
+    }
+    else {
+        for j in 0..<3 {
+            let axiscoords = (0..<probes.count) .map { linearcoords[3*$0 + j] }
+            spans.append([axiscoords.min()! - 2.0*probeRadius, axiscoords.max()! + 2.0*probeRadius])
+        }
+
     }
 
 
     // work with grid vertices, one more than number of grid divisions
-    let gridvertices = (0..<3) .map { Int(round((spans[$0][1] - spans[$0][0])/gridspacing)) + 1  }
 
-    let griddeltas = (0..<3) .map { (spans[$0][1] - spans[$0][0])/Double(gridvertices[$0] - 1) }
+    // again, special handling if membrane
+
+    var gridvertices:[Int] = [-1,-1,-1]
+    var griddeltas:[Double] = [0.0,0.0,0.0]
+
+
+    if unitcell != nil {
+        griddeltas = unitcell!.deltas 
+        gridvertices = (0..<3) .map { Int(round((spans[$0][1] - spans[$0][0])/griddeltas[$0])) + 1  }
+    }
+    else {
+        gridvertices = (0..<3) .map { Int(round((spans[$0][1] - spans[$0][0])/gridspacing)) + 1  }
+        griddeltas = (0..<3) .map { (spans[$0][1] - spans[$0][0])/Double(gridvertices[$0] - 1) }
+    }
 
     print("\ngridvertices : \(gridvertices)  griddeltas : \(griddeltas)")
 
@@ -1695,9 +1745,22 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
                         
                         
                         blocksQueue.sync {
-                            print("merge density vector from thread \(tidx)")
+
+
+                            //print("merge density vector from thread \(tidx)")
+
+                            //let presum = gridDensity.storage.reduce( 0.0, + )
+                            //print("total grid density before = \(presum)")
+
+                            //let tsum = density.reduce( 0.0, + )
+
+                            //print("adding total thread density \(tsum)")
 
                             (0..<gridDensity.storage.count) .map { gridDensity.storage[$0] += density[$0]}
+
+                            //let aftersum = gridDensity.storage.reduce( 0.0, + )
+
+                            //print("after addition, grid total = \(aftersum) , check \(aftersum) = \(presum+tsum)")
                         }
 
                         let time1 = Date().timeIntervalSince1970
@@ -1721,7 +1784,22 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
                             }
                         }
                         */
-                        
+
+                        /*
+                        var outstr = ""
+
+                        for dens in density {
+                            outstr += "\(dens)\n"
+                        }
+
+                        let url = URL(fileURLWithPath: "./density_\(tidx).txt")
+                        do {
+                            try outstr.write(to: url, atomically: true, encoding: String.Encoding.utf8)
+                        } catch {
+                            print("error writing file \(url)")
+                        }
+                       */
+
                         group.leave()
 
                         
@@ -1738,6 +1816,10 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
     // 
     // Other arguments should be OK
 
+    // clamp summed density to 1.0 
+
+    gridDensity.storage = gridDensity.storage .map { [$0, 1.0].min()! }
+
     let time0 = Date().timeIntervalSince1970
 
     let gridDensity_T = gridDensity.transpose()
@@ -1745,6 +1827,117 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
     let time1 = Date().timeIntervalSince1970
 
     print("\ntime for density matrix transpose = \(time1 - time0)")
+
+
+    var outstr = ""
+
+    for dens in gridDensity.storage {
+        outstr += "\(dens)\n"
+    }
+
+    var url = URL(fileURLWithPath: "./totalgriddensity.txt")
+    do {
+        try outstr.write(to: url, atomically: true, encoding: String.Encoding.utf8)
+    } catch {
+        print("error writing file \(url)")
+    }
+
+    /*
+    outstr = ""
+
+    for dens in gridDensity_T.storage {
+        outstr += "\(dens)\n"
+    }
+
+    url = URL(fileURLWithPath: "./totalgriddensity.transpose.txt")
+    do {
+        try outstr.write(to: url, atomically: true, encoding: String.Encoding.utf8)
+    } catch {
+        print("error writing file \(url)")
+    }
+    */
+
+    if unitcell != nil {
+        // check if density is periodic
+
+        // get lower X, upper X, and for Y 
+        
+        let gridX0 = Int(round((0.0 - spans[0][0])/griddeltas[0]))
+        let gridX1 = Int(round((unitcell!.sizes[0] - spans[0][0])/griddeltas[0]))
+
+        let gridY0 = Int(round((0.0 - spans[1][0])/griddeltas[1]))
+        let gridY1 = Int(round((unitcell!.sizes[1] - spans[1][0])/griddeltas[1]))
+
+        print("\nin densities : gridX limits = \(gridX0) to \(gridX1)")
+        print("\nin densities : gridY limits = \(gridY0) to \(gridY1)")
+
+        var densityX0 = [Double]()
+
+        for iy in 0..<gridvertices[1] {
+            for iz in 0..<gridvertices[2] {
+                let v = try gridDensity.getValue( [gridX0, iy, iz])
+                densityX0.append(v)
+            }
+        }
+
+        var densityX1 = [Double]()
+
+        for iy in 0..<gridvertices[1] {
+            for iz in 0..<gridvertices[2] {
+                let v = try gridDensity.getValue( [gridX1, iy, iz])
+                densityX1.append(v)
+            }
+        }
+
+        var densityY0 = [Double]()
+
+        for ix in 0..<gridvertices[0] {
+            for iz in 0..<gridvertices[2] {
+                let v = try gridDensity.getValue( [ix, gridY0, iz])
+                densityY0.append(v)
+            }
+        }
+
+        var densityY1 = [Double]()
+
+        for ix in 0..<gridvertices[0] {
+            for iz in 0..<gridvertices[2] {
+                let v = try gridDensity.getValue( [ix, gridY1,  iz])
+                densityY1.append(v)
+            }
+        }
+
+        
+        let diffsX = (0..<densityX0.count) .map { abs(densityX0[$0] - densityX1[$0]) }
+
+        let sumX0 = densityX0 .reduce ( 0.0, {$0 + $1} )
+        let sumX1 = densityX1 .reduce ( 0.0, {$0 + $1} )
+
+        let mean0 = sumX0 / Double(densityX0.count)
+        let mean1 = sumX1 / Double(densityX1.count)
+
+        let sumDiffs = diffsX .reduce ( 0.0, {$0 + $1} )
+        let aveDiff = sumDiffs / Double(diffsX.count)
+
+        print("\ncomparing X-unit cell planes : mean X0 = \(mean0) , mean X1 = \(mean1) , ave difference = \(aveDiff)")
+
+        let diffsY = (0..<densityY0.count) .map { abs(densityY0[$0] - densityY1[$0]) }
+
+        let sumY0 = densityY0 .reduce ( 0.0, + )
+        let sumY1 = densityY1 .reduce ( 0.0, + )
+
+        let mean0Y = sumY0 / Double(densityY0.count)
+        let mean1Y = sumY1 / Double(densityY1.count)
+
+        let sumDiffsY = diffsY .reduce ( 0.0, + )
+        let aveDiffY = sumDiffsY / Double(diffsY.count)
+
+        print("\ncomparing Y-unit cell planes : mean Y0 = \(mean0Y) , mean Y1 = \(mean1Y) , ave difference = \(aveDiffY)")
+
+
+
+    }
+
 
     print("\nenter marching cubes ...")
 
