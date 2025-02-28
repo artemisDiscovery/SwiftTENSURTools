@@ -403,10 +403,33 @@ final class SwiftTENSURToolsTests: XCTestCase {
 
     func donttestMembrane() throws {
 
-        let buffer = [4.0,4.0,4.0]
+        let buffer = 4.0
+
+        let ux = 61.864
+        let uy = 61.453
+        let uz = 96.120
+
+        let origin = Vector([0.0,0.0,0.0])
+
+        let dimensions = [Vector([ux , 0.0 , 0.0]), Vector([0.0 , uy , 0.0]), Vector([0.0 , 0.0 , uz])]
+
+        var griddeltas = [Double]()
+
+        let griddelta = 0.25
+
+        for ax in 0..<3 {
+            let num = round((dimensions[ax].coords[ax] - origin.coords[ax])/griddelta)
+            griddeltas.append( (dimensions[ax].coords[ax] - origin.coords[ax])/num ) 
+        }
+        var buffers = [Double]() 
+
+        for ax in 0..<3 {
+            buffers.append( round(buffer/griddeltas[ax])*griddeltas[ax] )
+        }
+
         var unitcell = UnitCell(Vector([0.0,0.0,0.0]), 
             [Vector([61.864 , 0.0 , 0.0]), Vector([0.0 , 61.453 , 0.0]), Vector([0.0 , 0.0 , 96.120])], 
-            buffer, AXES.Z ) 
+            buffers, griddeltas, AXES.Z ) 
 
         // import the mesh we saved in another test, here we just test the decompostion into components 
 
@@ -622,10 +645,39 @@ final class SwiftTENSURToolsTests: XCTestCase {
         // 4841  C1  DPPC  404       6.559  31.299  64.890 
         // HETATM 4881  N41 DPPC  404       6.909  31.549  66.280 
         
-        let buffer = [4.0,4.0,4.0]
+        let buffer = 6.0
+
+        let ux = 61.864
+        let uy = 61.453
+        let uz = 96.120
+
+        let origin = Vector([0.0,0.0,0.0])
+
+        let dimensions = [Vector([ux , 0.0 , 0.0]), Vector([0.0 , uy , 0.0]), Vector([0.0 , 0.0 , uz])]
+
+        var griddeltas = [Double]()
+
+        let griddelta = 0.15
+
+        for ax in 0..<3 {
+            let num = round((dimensions[ax].coords[ax] - origin.coords[ax])/griddelta)
+            griddeltas.append( (dimensions[ax].coords[ax] - origin.coords[ax])/num ) 
+        }
+
+        print("\nfinal grid deltas = \(griddeltas[0]) , \(griddeltas[1]) , \(griddeltas[2])")
+
+        var buffers = [Double]() 
+
+        for ax in 0..<3 {
+            buffers.append( round(buffer/griddeltas[ax])*griddeltas[ax] )
+        }
+
+
+        print("\nfinal buffers = \(buffers[0]) , \(buffers[1]) , \(buffers[2])")
+
         var unitcell = UnitCell(Vector([0.0,0.0,0.0]), 
             [Vector([61.864 , 0.0 , 0.0]), Vector([0.0 , 61.453 , 0.0]), Vector([0.0 , 0.0 , 96.120])], 
-            buffer, AXES.Z ) 
+            buffers, griddeltas, AXES.Z ) 
 
         let probeRad = 1.582785
 
@@ -682,7 +734,57 @@ final class SwiftTENSURToolsTests: XCTestCase {
         let imgradii = imginorder .map { radii![$0.1] }
         */
 
-        let imgrgb = Array( repeating:Vector([1.0,1.0,0.0]), count:unitcell.imagecoords!.count)
+        // assign each image atom to an original sector in buffer zone : 
+        // upper-left = red = (1,0,0)
+        // upper-middle = orange = (1., 165/255,0)
+        // upper-right = yellow = (1., 1.,0.)
+        // middle-left = yellow-green = (154/255, 205/255, 50/255)
+        // middle-right = green  = (0.,1.,0.)
+        // lower-left = blue = (0.,0.,1.)
+        // lower-middle = violet = (127/255, 0, 255/255)
+        // lower-right = cyan = (0., 1., 1.)
+
+        // for each coordinate, effect translations to put into original sector 
+
+        let mapRGB = [ "+1-1":Vector([1.0,0.0,0.0]), "0-1":Vector([1.0, 165.0/255.0, 0.0]), "-1-1":Vector([1.0,1.0,0.0]),
+                       "+10":Vector([154.0/255.0, 205.0/255.0, 50.0/255.0]), "-10":Vector([0.0, 1.0, 0.0]), 
+                       "+1+1":Vector([0.0,0.0,1.0]), "0+1":Vector([127.0/255.0, 0.0, 1.0 ]), "-1+1":Vector([0.0, 1.0, 1.0]) ]
+
+        var imgrgb = [Vector]()
+
+        let X = 61.864
+        let Y = 61.453
+
+        for img in unitcell.imagecoords! {
+            var keystr = ""
+            if img.coords[0] > X {
+                keystr += "+1"
+            }
+            else if img.coords[0] < 0 {
+                keystr += "-1"
+            }
+            else {
+                keystr += "0"
+            }
+
+            if img.coords[1] > Y {
+                keystr += "+1"
+            }
+            else if img.coords[1] < 0 {
+                keystr += "-1"
+            }
+            else {
+                keystr += "0"
+            }
+            
+            if mapRGB[keystr] != nil {
+                imgrgb.append(mapRGB[keystr]!)
+            }
+            else {
+                imgrgb.append(Vector([1.0,1.0,1.0]))
+            }
+            
+        }
 
         do {
             try exportAtoms( "OUTPUT/membraneImages.SPH.txt", unitcell.imagecoords!, imgradii, imgrgb )
@@ -699,18 +801,18 @@ final class SwiftTENSURToolsTests: XCTestCase {
 
         var surfdata = generateSurfaceProbes( coordinates:usecoordinates, radii:useradii, probeRadius:probeRad, 
                     levelspacing:0.5, minoverlap:0.5, numthreads:10, 
-                    skipCCWContours:true, unitcell:unitcell, debugAXES:nil)
+                    skipCCWContours:false, unitcell:unitcell, debugAXES:nil)
 
         var probes = surfdata.0 
 
-        let procprobedata = processMembraneProbes( probes, probeRad, unitcell)
+        let useprobes = processMembraneProbes( probes, probeRad, unitcell)
 
-        let keepprobes = procprobedata.1
-        let bufferProbes = procprobedata.2
+        //let keepprobes = procprobedata.1
+        //let bufferProbes = procprobedata.2
 
         var str = ""
 
-        for probe in keepprobes {
+        for probe in useprobes {
             if !probe.singleton {
                         str += "\(probe.center.coords[0]) \(probe.center.coords[1]) \(probe.center.coords[2]) \(probeRad) 1.0 1.0 1.0\n"
                     }
@@ -721,11 +823,12 @@ final class SwiftTENSURToolsTests: XCTestCase {
         }
 
         do {
-                try str.write(to: URL(fileURLWithPath:"OUTPUT/probes.txt"), atomically: true, encoding: String.Encoding.utf8)
+                try str.write(to: URL(fileURLWithPath:"OUTPUT/useprobes.txt"), atomically: true, encoding: String.Encoding.utf8)
         } catch {
                 print("could not write probes file !")
         }
 
+        /*
         str = ""
 
         for probe in bufferProbes {
@@ -742,12 +845,13 @@ final class SwiftTENSURToolsTests: XCTestCase {
         }
 
         let useprobes = procprobedata.0
+        */
 
         var tridata:([Vector],[Vector],[[Int]])?
 
         do {
             tridata = try generateTriangulation( probes:useprobes, probeRadius:probeRad, gridspacing:0.25, 
-            densityDelta:0.1, densityEpsilon:0.1, isoLevel:1.0, numthreads:10, mingridchunk:20 ) 
+            densityDelta:0.15, densityEpsilon:0.0, isoLevel:1.0, numthreads:10, mingridchunk:20, unitcell:unitcell ) 
         }
         catch {
             print("triangulation code failed !")
@@ -760,7 +864,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
     var NORMALS = tridata!.1
     var FACES = tridata!.2
 
-    var url = URL(fileURLWithPath: "./membrane_init2.obj")
+    var url = URL(fileURLWithPath: "./membrane_init3.obj")
 
     var outstr = ""
 
@@ -789,7 +893,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
     NORMALS = procmembranetri.1
     FACES = procmembranetri.2
 
-    url = URL(fileURLWithPath: "./membrane_proc2.obj")
+    url = URL(fileURLWithPath: "./membrane_proc3.obj")
 
     outstr = ""
 
@@ -1692,7 +1796,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
         let testaxis = AXES.Z
 
         do {
-            tridata = try generateTriangulation( probes:probes, probeRadius:probeRad, gridspacing:0.4, 
+            tridata = try generateTriangulation( probes:probes, probeRadius:probeRad, :0.4, 
             densityDelta:0.1, densityEpsilon:0.1, isoLevel:1.0, numthreads:10, axis:testaxis) 
         }
         catch {
