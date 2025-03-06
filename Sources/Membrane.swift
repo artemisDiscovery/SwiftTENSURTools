@@ -7,7 +7,8 @@ public class UnitCell {
 
     var origin:Vector
     var dimensions:[Vector]
-    var deltas:[Double]
+    var levelspacings:[Double]
+    var griddeltas:[Double]
     var buffer:[Double]
     var units:[Vector]
     var sizes:[Double]
@@ -17,10 +18,11 @@ public class UnitCell {
     var inverseindices:[Int:Int]?
 
 
-    public init(_ origin:Vector, _ dimensions:[Vector], _ buffer:[Double], _ deltas:[Double],  _ membraneaxis:AXES )  {
+    public init( origin:Vector, dimensions:[Vector], buffer:[Double], levelspacings:[Double], griddeltas:[Double],   membraneaxis:AXES )  {
         self.origin = origin
         self.dimensions = dimensions
-        self.deltas = deltas
+        self.griddeltas = griddeltas
+        self.levelspacings = levelspacings
         // note that unit vector is an optional
         self.units = dimensions .map { $0.unit()! }
         self.sizes = dimensions .map { $0.length() }
