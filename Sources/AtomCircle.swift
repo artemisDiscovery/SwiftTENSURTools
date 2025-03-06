@@ -1317,6 +1317,18 @@ public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRa
         -> ([Probe],[[Double]]) {
 
 
+    // SPECIAL HANDLING FOR MEMBRANES :
+    // we want to ensure that probe contours provide symmetric probe density close to the unit cell boundaries ; this should be the case
+    // if probe contours pass through symmetric positions on atoms
+    // 
+    // we assume that the unit cell origin is at (0,0,0), and we have grid deltas along the X, Y and Z (if membrane axis is Z, we really only
+    // need to worry about X and Y )
+    // 
+    // suppose we are making contours perpendicular to X ; if we have an atom with coordinate XJ and contour passing through CJX, then 
+    // if unit cell dimension if UX, we also need a contour passing through the image XJI at XJ + UX at CJIX = CJX + UX; this is true if
+    // UX is a whole multiple of the level spacing. For sanity, let's make level spacing a multiple of grid spacing, and also make 
+    // the lower limit for generating contours a multiple of grid spacing from the origin
+
     let radiiVec = Vector(radii)
 
     var atomcoords = [Double]() 
@@ -1336,14 +1348,13 @@ public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRa
         useAXES = debugAXES!
     }
 
+    var levelspacings = [ levelspacing, levelspacing, levelspacing ]
+
     
     if unitcell != nil {
-        useAXES = []
-        for ax in [ AXES.X, AXES.Y, AXES.Z ] {
-            if ax != unitcell!.membraneaxis {
-                useAXES.append(ax)
-            }
-        }
+    
+        levelspacings = unitcell!.levelspacings  
+
     }
     
 
@@ -1358,14 +1369,14 @@ public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRa
         
         let lowlim = lowermin.coords.min()! - probeRadius 
 
-        var minaxiscoord = ceil(abs(lowlim)/levelspacing) * levelspacing 
+        var minaxiscoord = ceil(abs(lowlim)/levelspacings[axis.rawValue]) * levelspacings[axis.rawValue]
 
         if lowlim < 0 {
             minaxiscoord = -minaxiscoord
         }
 
         let atomcircleLAYERS = atomCirclesForLayers( atompos:atompos, radii:radii, 
-                proberad:probeRadius, minaxiscoord:minaxiscoord, layerdelta:levelspacing, axis:axis, numthreads:numthreads )
+                proberad:probeRadius, minaxiscoord:minaxiscoord, layerdelta:levelspacings[axis.rawValue], axis:axis, numthreads:numthreads )
         
         let probedata = intersectingCirclesForLayers(atomcircleLAYERS, probeRadius:probeRadius, numthreads:numthreads, skipCCWContours:skipCCWContours )
 
@@ -1422,7 +1433,7 @@ public func indexFromIndices( _ indices:[Int],  shape:[Int], strides:[Int] )  ->
 // This returns for argument probe position a list of density values and 
 // offsets in the original grid storage
 
-public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsilon:Double, 
+public func densityForProbes( probes:[Probe], radius:Double, delta:Double,  
     griddeltas:[Double], limits:[[Double]], gridShape:[Int], gridStrides:[Int] ) -> [Double] {
 
     
@@ -1431,8 +1442,16 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsil
         
         let gradii = griddeltas .map { Int(radius/$0) + 1 }
 
-        let A = -1.0 / (delta + epsilon)
-        let B = (radius + epsilon)/(delta + epsilon)
+        // new density approach - 
+        //   2.0 inside probe, 
+        //     goes to 1.0 (default isovalue) in range proberad-delta -> proberad, 
+        //     goes to zero in range proberad -> proberad+delta
+        //
+
+        let DMAX = 2.0
+
+        let A = -DMAX / (2.0*delta)
+        let B = DMAX*(radius + delta)/(2.0*delta)
 
         for probe in probes {
 
@@ -1489,16 +1508,16 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsil
             for (d,idx) in zip(dists,probeLinearIndices) {
                 
                 if d < radius - delta {
-                    linearDensity[idx] += 1.0
-                    if linearDensity[idx] >= 1.0 {
-                        linearDensity[idx] = 1.0
+                    linearDensity[idx] += DMAX
+                    if linearDensity[idx] >= DMAX {
+                        linearDensity[idx] = DMAX
                         linearMask[idx] = false
                     }
                 }
-                else if d <= radius + epsilon {
+                else if d <= radius + delta {
                     linearDensity[idx] += A*d + B
-                    if linearDensity[idx] >= 1.0 {
-                        linearDensity[idx] = 1.0
+                    if linearDensity[idx] >= DMAX {
+                        linearDensity[idx] = DMAX
                         linearMask[idx] = false
                     }
                 }
@@ -1616,7 +1635,8 @@ public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddel
 }
 
 public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspacing:Double, 
-        densityDelta:Double, densityEpsilon:Double, isoLevel:Double, numthreads:Int, axis:AXES=AXES.Z, mingridchunk:Int=100, unitcell:UnitCell?=nil) 
+        densityDelta:Double,  isoLevel:Double, numthreads:Int, axis:AXES=AXES.Z, mingridchunk:Int=100, 
+        unitcell:UnitCell?=nil, DMAX:Double=2.0) 
             throws -> ([Vector], [Vector], [[Int]]) {
            // -> throws ([[Double]], [[Int]])  {
 
@@ -1654,7 +1674,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
                 lower = unitcell!.origin.coords[ax] - buffer_real[ax]
                 upper = unitcell!.origin.coords[ax] + unitcell!.sizes[ax] + buffer_real[ax]
-                print("\nfor axis \(ax) , lower = \(lower) , grid uc zero = \(-lower/unitcell!.deltas[ax]) , grid uc max = \((unitcell!.sizes[ax] - lower)/unitcell!.deltas[ax])")
+                //print("\nfor axis \(ax) , lower = \(lower) , grid uc zero = \(-lower/unitcell!.griddeltas[ax]) , grid uc max = \((unitcell!.sizes[ax] - lower)/unitcell!.griddeltas[ax])")
             }
             print("\n\(ax) : span = \(lower) : \(upper)")
             spans.append([lower,upper])
@@ -1679,7 +1699,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
 
     if unitcell != nil {
-        griddeltas = unitcell!.deltas 
+        griddeltas = unitcell!.griddeltas 
         gridvertices = (0..<3) .map { Int(round((spans[$0][1] - spans[$0][0])/griddeltas[$0])) + 1  }
     }
     else {
@@ -1741,7 +1761,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
                         
                         let density =  densityForProbes( probes:probesForThread[tidx], radius:probeRadius, delta:densityDelta, 
-                            epsilon:densityEpsilon, griddeltas:griddeltas, limits:spans, gridShape:gridShape, gridStrides:gridStrides )
+                            griddeltas:griddeltas, limits:spans, gridShape:gridShape, gridStrides:gridStrides )
                         
                         
                         blocksQueue.sync {
@@ -1816,9 +1836,9 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
     // 
     // Other arguments should be OK
 
-    // clamp summed density to 1.0 
+    // clamp summed density to DMAX 
 
-    gridDensity.storage = gridDensity.storage .map { [$0, 1.0].min()! }
+    gridDensity.storage = gridDensity.storage .map { [$0, DMAX].min()! }
 
     let time0 = Date().timeIntervalSince1970
 
@@ -1828,7 +1848,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
     print("\ntime for density matrix transpose = \(time1 - time0)")
 
-
+    /*
     var outstr = ""
 
     for dens in gridDensity.storage {
@@ -1842,7 +1862,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
         print("error writing file \(url)")
     }
 
-    /*
+    
     outstr = ""
 
     for dens in gridDensity_T.storage {
@@ -1857,6 +1877,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
     }
     */
 
+    /*
     if unitcell != nil {
         // check if density is periodic
 
@@ -1937,7 +1958,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
 
 
     }
-
+    */
 
     print("\nenter marching cubes ...")
 
