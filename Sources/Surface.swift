@@ -194,7 +194,7 @@ public func surfaceComponentsCFS( faces:[[Int]], numvertices:Int ) -> [[Int]] {
 
 // for identifying 'caps' that sew to main membrane reentrant surfaces 
 
-public func edgeComponentsCFS( boundaryedges:[[Int]] ) -> [[Int]] {
+public func edgeComponentsCFS( boundaryedges:[Edge] ) -> [Edge] {
 
     print("\nDEPRECATED : function edgeComponentsCFS : not tested")
     // only have boundary edges - translate vertex indices 
@@ -313,8 +313,16 @@ public func areaForFace( vertices:[Vector], face:[Int] ) -> (normal:Vector,area:
     let disp01 = vertices[face[1]].sub(vertices[face[0]])
     let disp02 = vertices[face[2]].sub(vertices[face[0]])
 
-    let normal = disp01.cross(disp02)
-    let area = 0.5 * normal.length()
+    var normal = disp01.cross(disp02)
+    let len = normal.length()
+    let area = 0.5 * len
+
+    if area < 0.000001 {
+        normal = Vector([0.0,0.0,0.0])
+    }
+    else {
+        normal = normal.scaled(1.0/len)
+    }
 
     return (normal:normal, area:area )
 }
@@ -390,95 +398,34 @@ public func findBoundaryEdges( faces:[[Int]] ) -> (edges:[Edge],vertices:[Int]) 
     return (edges:boundedges, vertices:boundvertices)
 }
 
-public func identifySurfaceType( vertices:[Vector], normals:[Vector], boundaryvertices:[Int]=[] ) -> SurfaceType {
+public func identifySurfaceType( vertices:[Vector], normals:[Vector], boundaryvertices:[Int]=[], axis:Int=2 ) -> SurfaceType {
 
-    // find nonboundary vertex with max/min coordinate
-
-    // for now if we have boundary, just return undetermined 
+    // for now just use Z-axis for simplicity, no longer imagining 'caps'
 
     if boundaryvertices.count > 0 {
         return SurfaceType.undeterminedOpen
     }
 
-    // var isboundary = Array( repeating:false, count:vertices.count )
+    let maxidx = vertices.indices.max( by: { vertices[$0].coords[axis] < vertices[$1].coords[axis] } )!
 
-    //_ = boundaryvertices .map { isboundary[$0] = true }
+    let maxCoord = vertices[maxidx].coords[axis]
 
-    var axisextrema = [(axis:Int,minindex:Int,minvalue:Double,maxindex:Int,maxvalue:Double)]()
+    var direction = Vector[(0.0,0.0,0.0)]
 
-    for ax in 0..<3 {
-        let minidx = vertices.indices.min( by: { vertices[$0].coords[ax] < vertices[$1].coords[ax] } )!
-        let maxidx = vertices.indices.max( by: { vertices[$0].coords[ax] < vertices[$1].coords[ax] } )!
-        let minvalue = vertices[minidx].coords[ax]
-        let maxvalue = vertices[maxidx].coords[ax]
+    direction[axis] = 1.0 
 
-        axisextrema.append( (axis:ax, minindex:minidx, minvalue:minvalue, maxindex:maxidx, maxvalue:maxvalue))
-        
+    let test = normals[maxidx].dot(direction)
 
+    if test > 0 {
+        return SurfaceType.reentrantClosed
     }
-
-    // sort by length along axis
-
-    axisextrema = axisextrema .sorted { ($0.maxvalue - $0.minvalue) > ($1.maxvalue - $1.minvalue) }
-
-    var bestaxis:Int?
-    var bestindex:Int?
-    var ismaximum = true 
-    var bestix:Int? 
-
-    for (ix,extremum) in axisextrema.enumerated() {
-        //if !isboundary[extremum.maxindex] {
-            bestaxis = extremum.axis 
-            bestindex = extremum.maxindex
-            ismaximum = true
-            bestix = ix
-            break
-        //}
-        //else if !isboundary[extremum.minindex] {
-        //    bestaxis = extremum.axis 
-        //    bestindex = extremum.minindex
-        //    ismaximum = false
-        //    bestix = ix
-        //    break
-        //}
+    else {
+        return SurfaceType.probeCenteredClosed
     }
-
-    if bestaxis == nil  {
-        // IF we were considering boundary, but not doing that right now ---
-        // (WTF? implies that we have all maxima on boundary, must be membrane large component - just identify as probe-centered open)
-
-        return SurfaceType.undeterminedOpen
-    }
-
-    var direction = Vector([0.0,0.0,0.0])
-    direction.coords[bestaxis!] = 1.0 
-
-    // if minimum, reverse direction 
-
-    if !ismaximum {
-        direction = direction.scale(-1.0)
-    }
-
-    let test = normals[bestindex!].dot(direction)
-
-    // if normal disagrees with direction, outside probe-centered
-
-    if test < 0 {
-        if boundaryvertices.count > 0 {
-            return SurfaceType.undeterminedOpen
-        }
-        else {
-            return SurfaceType.probeCenteredClosed
-        }
-    
-    }
-    
-    // test > 0, have agreement between normal and direction, 
-
-    return SurfaceType.reentrantClosed
 
 
 }
+
 
 public func reverseNormals( normals:[Vector], faces:[[Int]]) -> (normals:[Vector], faces:[[Int]]) {
 
@@ -492,13 +439,13 @@ public func reverseNormals( normals:[Vector], faces:[[Int]]) -> (normals:[Vector
 
 }
 
-public func boundingBox( points:[Vector] ) -> (min:[Vector],max:Vector) 
+public func boundingBox( points:[Vector] ) -> (min:Vector,max:Vector) 
  {
     var mins = [Double]()
     var maxs = [Double]()
     
     for ax in 0..<3 {
-        let coords = points .map { $0[ax] }
+        let coords = points .map { $0.coords[ax] }
         let min = coords.min()!
         let max = coords.max()!
         mins.append(min)
@@ -509,7 +456,7 @@ public func boundingBox( points:[Vector] ) -> (min:[Vector],max:Vector)
     
 }
 
-public func boundingBoxInside( smaller:(min:[Vector],max:Vector), larger:(min:[Vector],max:Vector) ) -> Bool {
+public func boundingBoxInside( smaller:(min:Vector,max:Vector), larger:(min:Vector,max:Vector) ) -> Bool {
 
     for ax in 0..<3 {
         if smaller.min.coords[ax] < larger.min.coords[ax] {
@@ -536,13 +483,13 @@ public func isInterior( smaller:(vertices:[Vector],normals:[Vector],faces:[[Int]
             return false 
         }
 
-        // do more precise test, just use Z coordinate 
+        // do more precise test, just use Z axis 
 
         let maxidx = smaller.vertices.indices.max( by: { smaller.vertices[$0].coords[2] < smaller.vertices[$1].coords[2] } )!
 
         // get top point for smaller surface, convert to bounding box
 
-        let coord = 0..<3 .map { smaller.vertices[maxidx].coords[$0] }
+        let coord = (0..<3) .map { smaller.vertices[maxidx].coords[$0] }
 
         let maxZ = coord[2]
 
@@ -550,7 +497,7 @@ public func isInterior( smaller:(vertices:[Vector],normals:[Vector],faces:[[Int]
 
         var candidateFaces = [Int]()
 
-        for fidx,face in larger.faces.enumerated() {
+        for (fidx,face) in larger.faces.enumerated() {
 
             let points = face .map { Vector([larger.vertices[$0].coords[0],  larger.vertices[$0].coords[1], 0.0]) }
             let minZ = (face .map { larger.vertices[$0].coords[2] }).min()!
@@ -575,7 +522,9 @@ public func isInterior( smaller:(vertices:[Vector],normals:[Vector],faces:[[Int]
 
         // intersection if point x,y in face x,y
 
-        for face in candidateFaces {
+        for fidx in candidateFaces {
+
+            let face = larger.faces[fidx]
 
             let verts = face .map { larger.vertices[$0] }
             let d1 = verts[1].sub(verts[0])
@@ -585,13 +534,13 @@ public func isInterior( smaller:(vertices:[Vector],normals:[Vector],faces:[[Int]
 
             if abs(det) < 0.000001 { continue }
 
-            dx = coord[0] - verts[0].coords[0]
-            dy = coord[1] - verts[0].coords[1]
+            let dx = coord[0] - verts[0].coords[0]
+            let dy = coord[1] - verts[0].coords[1]
 
             let r = (dx*d2.coords[1] - dy*d2.coords[0]) / det
             let s = (d1.coords[0]*dy - d1.coords[1]*dx) / det 
 
-            if 0. <= r && r <= 1.0 && 0. <= s && s <= 1.0 {
+            if 0.0 <= r && r <= 1.0 && 0.0 <= s && s <= 1.0 {
                 return true 
             }
         }
@@ -623,14 +572,22 @@ public func processNonMembraneTri( _ VERTICES:[Vector], _ NORMALS:[Vector],  _ F
 
         let surftype = identifySurfaceType(vertices:vertices, normals:normals, boundaryvertices:[])
 
+        if surftype == SurfaceType.undeterminedOpen {
+            print("\nprocessNonMembraneTri : warning : have component with undetermined surface type, skipping")
+            continue
+        }
+
         if surftype == SurfaceType.reentrantClosed && opts["keepreentrant"]! as! Bool {
+
             let faces = findComponentFaces(component:component, FACES:FACES, numvertices:VERTICES.count)
 
-            reentrantCOMPONENTS.append((vertices:vertices,normals:normals,faces:faces,surfacetype:surfacetype))
+            reentrantCOMPONENTS.append((vertices:vertices,normals:normals,faces:faces,surfacetype:surftype))
         }
         else if (opts["keepprobecentered"]! as! Bool) || !(opts["skipcavities"]! as! Bool) {
+
             let faces = findComponentFaces(component:component, FACES:FACES, numvertices:VERTICES.count)
-            probecenteredCOMPONENTS.append((vertices:vertices,normals:normals,faces:faces,surfacetype:surfacetype))
+
+            probecenteredCOMPONENTS.append((vertices:vertices,normals:normals,faces:faces,surfacetype:surftype))
         }
 
     }

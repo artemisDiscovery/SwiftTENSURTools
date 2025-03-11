@@ -1312,22 +1312,11 @@ public func probesForContour( _ contour:Contour, probeRadius:Double, minOverlap:
 
 // returns probes for all axes used, and levels for X, Y and Z
 
-public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRadius:Double, levelspacing:Double, minoverlap:Double, numthreads:Int,
-        skipCCWContours:Bool,  unitcell:UnitCell?=nil, atomindices:[Int]?=nil, debugAXES:[AXES]?=nil, verbose:Bool=true ) 
+public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRadius:Double, levelspacings:[Double], minoverlap:Double, numthreads:Int,
+        skipCCWContours:Bool,  atomindices:[Int]?=nil, debugAXES:[AXES]?=nil, verbose:Bool=true ) 
         -> ([Probe],[[Double]]) {
 
 
-    // SPECIAL HANDLING FOR MEMBRANES :
-    // we want to ensure that probe contours provide symmetric probe density close to the unit cell boundaries ; this should be the case
-    // if probe contours pass through symmetric positions on atoms
-    // 
-    // we assume that the unit cell origin is at (0,0,0), and we have grid deltas along the X, Y and Z (if membrane axis is Z, we really only
-    // need to worry about X and Y )
-    // 
-    // suppose we are making contours perpendicular to X ; if we have an atom with coordinate XJ and contour passing through CJX, then 
-    // if unit cell dimension if UX, we also need a contour passing through the image XJI at XJ + UX at CJIX = CJX + UX; this is true if
-    // UX is a whole multiple of the level spacing. For sanity, let's make level spacing a multiple of grid spacing, and also make 
-    // the lower limit for generating contours a multiple of grid spacing from the origin
 
     let radiiVec = Vector(radii)
 
@@ -1348,16 +1337,7 @@ public func generateSurfaceProbes( coordinates:[Vector], radii:[Double], probeRa
         useAXES = debugAXES!
     }
 
-    var levelspacings = [ levelspacing, levelspacing, levelspacing ]
-
     
-    if unitcell != nil {
-    
-        levelspacings = unitcell!.levelspacings  
-
-    }
-    
-
     for (naxis,axis) in useAXES.enumerated() {
 
         print("Axis : \(axis.rawValue)")
@@ -1457,7 +1437,7 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double,
 
             let center = probe.center
 
-            let gcenter = (0..<3) .map { Int((center.coords[$0] - limits[$0][0])/griddeltas[$0]) }
+            let gcenter =  Int((center.coords[$0] - limits[$0][0])/griddeltas[$0]) 
 
             let gmin = (0..<3) .map { max(gcenter[$0] - gradii[$0], 0) }
             let gmax = (0..<3) .map { min(gcenter[$0] + gradii[$0], gridShape[$0]-1) }

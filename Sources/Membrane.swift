@@ -191,11 +191,9 @@ public func membraneCoordinates(_ incoordinates:[Vector], _ inradii:[Double], _ 
 public func processMembraneProbes( _ probes:[Probe], _ proberad:Double, _ unitcell:UnitCell ) 
             -> ([Probe],[Probe],[Probe]) {
 
-    // ** in first step, remove probes that lie outside the unit cell ** 
-    // I think this is counterproductive - I am potentially losing information
-    // from probes that span one unit cell to the next 
     //
-    // instead of building 'image probes', just retain all probes within buffer of both boundaries at the outset
+    // retain all probes within buffer of both boundaries at the outset
+
     // I may have been worrying about 'double counting' density, but in latest rev that is not possible
 
     var keepprobes = [Probe]()
@@ -247,6 +245,8 @@ public func processMembraneProbes( _ probes:[Probe], _ proberad:Double, _ unitce
     let totPROBES = keepprobes + bufferPROBES
     */
 
+    // keeping three slots for backward compatibility, last two are currently empty 
+    
     return (keepprobes, bufferPROBES, totPROBES)
 
 
@@ -266,7 +266,14 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
 
     print("\ntime to find connected comoponents by DFS = \(time1 - time0)")
 
+
+    let probeZ = PROBES .map { $0.center.coords[2] }
+    let probeZMin = probeZ.min()!
+    let probeZMax = probeZ.max()!
+
     // assume that four biggest (first) components are the membrane probe-centered and reentrant
+
+
     //
     // we want at this point only the merged reentrant, and with all elements retained of the corresponding
     // components
@@ -278,8 +285,10 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
 
     var minMaxCompZ = [(min:Double,max:Double)]()
 
-    for component in largestOpen.enumerated() {
-        let compZ = component.vertices .map { $0.coords[2] }
+    for cidx in 0..<4 {
+
+        let component = components[cidx]
+        let compZ = component .map { VERTICES[$0].coords[2] }
         let minZ = compZ.min()!
         let maxZ = compZ.max()!
         minMaxCompZ.append((min:minZ, max:maxZ))
@@ -295,7 +304,7 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
     }
 
     if topPCIdx == nil || bottomPCIdx == nil {
-        print("\nmembrane surface components FAILURE, cannot identify both top and bottom probe-centered membrane components" )
+        print("\nprocessMembraneTri : FAILURE, cannot identify both top and bottom probe-centered membrane components" )
         return nil 
     }
 
@@ -318,7 +327,7 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
     }
 
     if topReentIdx == nil || bottomReentIdx == nil {
-        print("\nmembrane surface components FAILURE, cannot identify both top and bottom reentrant membrane components" )
+        print("\nprocessMembraneTri : FAILURE, cannot identify both top and bottom reentrant membrane components" )
         return nil 
     }
 
@@ -344,10 +353,11 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
 
     var membranefaces = Array( repeating:true, count:FACES.count )
 
-    _ = FACES.enumerated() .map { ($0) in 
-        if !keepvertices[$0.element[0]] || !keepvertices[$0.element[1]] || !keepvertices[$0.element[2]] {
-            membranefaces[$0.offset] = false 
+    for (fidx,face) in FACES.enumerated() {
+        if !keepvertices[face[0]] || !keepvertices[face[1]] || !keepvertices[face[2]] {
+            membranefaces[fidx] = false 
         }
+
     }
 
     // renumber to return 
@@ -365,8 +375,6 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
 
     let exportfaces = FACES.enumerated() .filter { membranefaces[$0.offset] } .map { $0.element .map { oldToNewIndex[$0]} }
 
-
- 
 
     return (vertices:exportvertices, normals:exportnormals, faces:exportfaces, surfacetype:SurfaceType.undeterminedOpen)
 
