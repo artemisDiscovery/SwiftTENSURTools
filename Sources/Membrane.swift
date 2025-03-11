@@ -308,7 +308,7 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
         return nil 
     }
 
-    var reentrantComponents = [(vertices:[Vector], normals:[Vector], faces:[[Int]], surfacetype:SurfaceType)]()
+    var reentrantComponents = [Int]()
 
     for cidx in 0..<4 {
         if ![topPCIdx!, bottomPCIdx!].contains(cidx) {

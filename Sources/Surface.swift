@@ -194,7 +194,7 @@ public func surfaceComponentsCFS( faces:[[Int]], numvertices:Int ) -> [[Int]] {
 
 // for identifying 'caps' that sew to main membrane reentrant surfaces 
 
-public func edgeComponentsCFS( boundaryedges:[Edge] ) -> [Int] {
+public func edgeComponentsCFS( boundaryedges:[Edge] ) -> [[Int]] {
 
     print("\nDEPRECATED : function edgeComponentsCFS : not tested")
     // only have boundary edges - translate vertex indices 
@@ -412,7 +412,7 @@ public func identifySurfaceType( vertices:[Vector], normals:[Vector], boundaryve
 
     var direction = Vector([0.0,0.0,0.0])
 
-    direction[axis] = 1.0 
+    direction.coords[axis] = 1.0 
 
     let test = normals[maxidx].dot(direction)
 
