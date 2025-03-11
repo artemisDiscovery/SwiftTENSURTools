@@ -147,6 +147,18 @@ public class UnitCell {
         self.inverseindices = inverseindices
     }
 
+    public func inside( _ coords:[Vector], tol:Double=0.0001 ) -> Bool {
+        let cellc = self.cellcoords( coords )
+
+        for ax in 0..<3 {
+            if cellc[ax] < -tol || cellc[ax] > 1.0 + tol {
+                return false
+            }
+        }
+
+        return true
+    }
+
 }
 
 
@@ -242,249 +254,126 @@ public func processMembraneProbes( _ probes:[Probe], _ proberad:Double, _ unitce
 
 
 
-public func processMembraneTri( _ VERTICES:[Vector], _ NORMALS:[Vector], _ FACES:[[Int]], _ unitcell:UnitCell ) 
-        -> ([Vector], [Vector], [[Int]]) {
+public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int]], PROBES:[Probe], unitcell:UnitCell  ) 
+        -> (vertices:[Vector], normals:[Vector], faces:[[Int]], surfacetype:SurfaceType) {
 
-    var inelems = [Int]()
-    var outelems = [Int]()
-    var crosselems = [Int]()
 
-    let vertexcellcoords = VERTICES .map { unitcell.cellcoords($0) }
+    // BEFORE doing the cut, determine connected components; 
+
+    let time0 = Date().timeIntervalSince1970
+    let components = surfaceComponentsDFS( faces:FACES, numvertices:VERTICES.count )
+    let time1 = Date().timeIntervalSince1970
+
+    print("\ntime to find connected comoponents by DFS = \(time1 - time0)")
+
+    // assume that four biggest (first) components are the membrane probe-centered and reentrant
+    //
+    // we want at this point only the merged reentrant, and with all elements retained of the corresponding
+    // components
+
+    var topPCIdx:Int?
+    var bottomPCIdx:Int?
+    var topReentIdx:Int?
+    var bottomReentIdx:Int?
+
+    var minMaxCompZ = [(min:Double,max:Double)]()
+
+    for component in largestOpen.enumerated() {
+        let compZ = component.vertices .map { $0.coords[2] }
+        let minZ = compZ.min()!
+        let maxZ = compZ.max()!
+        minMaxCompZ.append((min:minZ, max:maxZ))
+    }
+
+    for (cidx,zdata) in minMaxCompZ.enumerated() {
+        if zdata.max > probeZMax {
+            topPCIdx = cidx
+        }
+        else if zdata.min < probeZMin {
+            bottomPCIdx = cidx
+        }
+    }
+
+    if topPCIdx == nil || bottomPCIdx == nil {
+        print("\nmembrane surface components FAILURE, cannot identify both top and bottom probe-centered membrane components" )
+        return nil 
+    }
+
+    var reentrantComponents = [] 
+
+    for cidx in 0..<4 {
+        if ![topPCIdx!, bottomPCIdx!].contains(cidx) {
+            reentrantComponents.append(cidx)
+        }
+    }
+
+    for order in [(0,1),(1,0)] {
+        let top = reentrantComponents[order[0]]
+        let bottom = reentrantComponents[order[1]]
+        if minMaxCompZ[top].min > minMaxCompZ[bottom].max {
+            topReentIdx = top
+            bottomReentIdx = bottom
+            break
+        }
+    }
+
+    if topReentIdx == nil || bottomReentIdx == nil {
+        print("\nmembrane surface components FAILURE, cannot identify both top and bottom reentrant membrane components" )
+        return nil 
+    }
+
+    var vertexToFaces = Array( repeating:[Int](), count:VERTICES.count )
 
     for (fidx,face) in FACES.enumerated() {
-        var inside = 0
-        var outside = 0
-        for vertex in face .map ({ vertexcellcoords[$0] }) {
-            var out = false
+        face .map { vertexToFaces[$0].append(fidx) }
+    }
 
-            for ax in 0..<3 {
-                if ax == unitcell.membraneaxis.rawValue { continue }
-                if vertex[ax] < 0.0 || vertex[ax] > 1.0 {
-                    out = true
-                    break
-                }
-            }
-            
-            if out {
-                outside += 1
-            }
-            else {
-                inside += 1
-            }
+    var membranevertices = Array( repeating:false, count:VERTICES.count )
 
-        } 
-        if outside == 0 {
-            inelems.append(fidx)
+    for cidx in reentrantComponents {
+
+        _ = components[cidx] .map { membranevertices[$0] = true }
+    }
+
+
+    // only keep membrane faces/vertices inside the unit cell 
+
+    let insidevertices = VERTICES .map { unitcell.inside( $0 ) }
+
+    let keepvertices = zip(insidevertices, membranevertices) .map { $0 && $1 }
+
+    var membranefaces = Array( repeating:true, count:FACES.count )
+
+    _ = FACES.enumerated() .map { ($0) in 
+        if !keepvertices[$0.element[0]] || !keepvertices[$0.element[1]] || !keepvertices[$0.element[2]] {
+            membranefaces[$0.offset] = false 
         }
-        else if inside == 0 {
-            outelems.append(fidx)
-        }
-        else if outside > 0 && inside > 0 {
-            crosselems.append(fidx)
-        }
+    }
+
+    // renumber to return 
+
+    let exportvertexindices = 0..<VERTICES.count .filter { keepvertices[$0] }
+
+    var oldToNewIndex = Array(repeating:-1, count:VERTICES.count )
+
+    for (newidx,oldidx) in exportvertexindices.enumerated() {
+        oldToNewIndex[oldidx] = newidx 
     } 
 
-    // not sure that initial approach of simply deleting elements at one side is adequate - what happens upon decimation??
-    // 
-    // instead add edges to make boundary elements conform to unit cell boundaries; means adding vertices, edges and faces
+    let exportvertices = VERTICES.enumerated() .filter { keepvertices[$0.offset] } .map { $0.element } 
+    let exportnormals  =  NORMALS.enumerated() .filter { keepvertices[$0.offset] } .map { $0.element }
 
-    // for oriented element [0, 1, 2, 0] :
-    // if two vertices separated by u.c. boundary, insert a vertex between 
-    // e.g. if 2 and 0 on opp sides, have [0, 1, 2, 20, 0 ]
-    // have faces [0, 1, 2] + [0, 2, 20]
-    //
-    // if 0, 2 opp 1 : [0, 01, 1, 2, 20, 0], elements [0, 01, 20], [01, 1, 20], [1, 2, 20]
-    //
-    // special condition - does face contain unit cell 'corner' ? This gets really complicated; maybe see first if 
-    // smoothing and decimation looks OK with the ragged edge.
-
-    /*
-    var newfaces = [[Int]]()
-
-    for fidx in crosselems {
-
-        let insideverts =  FACES[fidx] .filter { vertexcellcoords[$0] <= 1.0 || vertexcellcoords[$0] >= 0.0 }
-        let outsideverts = FACES[fidx] .filter { vertexcellcoords[$0] > 1.0 || vertexcellcoords[$0] < 0.0 }
-
-        var extendedface = [Int]()
-
-        for i in 0..<3 {
-            let j = i < 2 ? i + 1 : 0
-
-            let vi = FACES[fidx][i]
-            let vj = FACES[fidx][j]
-
-            if (insideverts.contains(vi) && outsideverts.contains(vj)) || (insideverts.contains(vj) && outsideverts.contains(vi)) {
-                
-            }
-        }
+    let exportfaces = FACES.enumerated() .filter { membranefaces[$0.offset] } .map { $0.element .map { oldToNewIndex[$0]} }
 
 
+ 
 
-    } 
-
-    */
-
-
-
-    // delete crossover elements at 'right' or 'top' of unit cell --- 
-    // in brief, keep any element with all vertex coordinates less than 1.0
-
-    var keepelems = Array(inelems) 
-
-
-    for fidx in crosselems {
-        // just keep for now, sort out after I see the results
-        keepelems.append(fidx)
-        /*
-        var keep = true 
-        let vertcoord = FACES[fidx] .map { vertexcellcoords[$0] }
-        
-        for (aidx,coord) in vertcoord.enumerated() {
-            if aidx == unitcell.membraneaxis.rawValue { continue }
-            if coord[aidx] > 1.0 {
-                keep = false
-                break
-            }
-        }
-
-        if keep {
-            keepelems.append(fidx)
-        }
-        */
-    }
-
-    var vertexindices = [Int]()
-
-    for fidx in keepelems {
-        vertexindices += FACES[fidx]
-    }
-
-    let keepvertexset = Set(vertexindices)
-
-    var keepvertexindices = Array(keepvertexset) 
-    keepvertexindices = keepvertexindices .sorted { $0 < $1 }
-
-    // translate old to new vertex indices 
-
-    var translate = Array( repeating:-1 , count:VERTICES.count )
-
-    for (newidx,oldidx) in keepvertexindices.enumerated() {
-        translate[oldidx] = newidx
-    }
-
-    // vertex data for export 
-
-    let exportVertices = keepvertexindices .map { VERTICES[$0] }
-    let exportNormals =  keepvertexindices .map { NORMALS[$0] }
-
-    var exportElems = [[Int]]()
-
-    for fidx in keepelems {
-        let v0 = FACES[fidx][0]
-        let v1 = FACES[fidx][1]
-        let v2 = FACES[fidx][2]
-        exportElems.append( [translate[v0], translate[v1], translate[v2]])
-    }
-
-    return (exportVertices, exportNormals, exportElems)
+    return (vertices:exportvertices, normals:exportnormals, faces:exportfaces, surfacetype:SurfaceType.undeterminedOpen)
 
 
 }
 
 
 
-public func mergeSurfaceComponents( _ vertA:[Vector], _ vertB:[Vector], _ normA:[Vector], _ normB:[Vector],
-    _ faceA:[[Int]], _ faceB:[[Int]]) -> ([Vector],[Vector],[[Int]]) {
-
-        var outverts = [Vector]() 
-
-        var outnorms = [Vector]()
-
-        outverts += vertA 
-        outverts += vertB
-
-        outnorms += normA 
-        outnorms += normB 
-
-        let vertexmapB = (0..<vertB.count) .map { $0 + vertA.count }
-
-        var outfaces = [[Int]]()
-
-        outfaces += faceA 
-
-        outfaces += faceB .map { [vertexmapB[$0[0]], vertexmapB[$0[1]], vertexmapB[$0[2]]] }
-
-        return ( outverts, outnorms, outfaces ) 
-    } 
 
 
-
-public func membraneSurfaceComponents( _ SUBVERTICES:[[Vector]], _ SUBNORMALS:[[Vector]], _ SUBFACES:[[[Int]]], 
-            _ unitcell:UnitCell)
-             ->  ([[Vector]], [[Vector]], [[[Int]]])  {
-
-        // strategy - take random sample of biggest components, for a sample of elements get normal along membrane axis, 
-        // average coordinate in direction of axis; expect highest and lowest with opposite normals, inner two with likwise 
-        // opposite normals ; merge outer and inner into single components ('0' is outer, '1' is inner)
-
-        var OUTVERTICES = [[Vector]]()
-        var OUTNORMALS = [[Vector]]()
-        var OUTFACES = [[[Int]]]()
-
-        var maxPositions = [Double]()
-
-        let ax = unitcell.membraneaxis.rawValue
-        
-
-        for isurf in 0..<4 {
-            
-
-            var axcoors = SUBVERTICES[isurf] .map { $0.coords[ax] }
-            
-            maxPositions.append( axcoors.max()! )
-
-        }
-
-        
-
-        var compAxisPos = (0..<4) .map { (maxPositions[$0],$0) } 
-
-        compAxisPos = compAxisPos .sorted { $0.0 < $1.0 }
-
-        let bottom0 = compAxisPos[0].1
-        let bottom1 = compAxisPos[1].1
-        let top1 = compAxisPos[2].1
-        let top0 = compAxisPos[3].1
-
-        
-        // membrane components are sorted - merge top.0 and bottom.0, top.1 and bottom.1 ; any
-        // other components are copied
-
-        let membrane0 = mergeSurfaceComponents( SUBVERTICES[top0], SUBVERTICES[bottom0], 
-                SUBNORMALS[top0], SUBNORMALS[bottom0], SUBFACES[top0], SUBFACES[bottom0] )
-
-        let membrane1 = mergeSurfaceComponents( SUBVERTICES[top1], SUBVERTICES[bottom1], 
-                SUBNORMALS[top1], SUBNORMALS[bottom1], SUBFACES[top1], SUBFACES[bottom1] )
-
-        OUTVERTICES.append(membrane0.0)
-        OUTVERTICES.append(membrane1.0)
-
-        OUTNORMALS.append(membrane0.1)
-        OUTNORMALS.append(membrane1.1)
-
-        OUTFACES.append(membrane0.2)
-        OUTFACES.append(membrane1.2)
-
-        if SUBVERTICES.count > 4 {
-            for isurf in 4..<SUBVERTICES.count {
-                OUTVERTICES.append(SUBVERTICES[isurf])
-                OUTNORMALS.append(SUBNORMALS[isurf])
-                OUTFACES.append(SUBFACES[isurf])
-            }
-        }
-
-        return (OUTVERTICES,OUTNORMALS,OUTFACES)
-
-
-    }

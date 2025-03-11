@@ -401,42 +401,68 @@ final class SwiftTENSURToolsTests: XCTestCase {
     // https://pacugindre.medium.com/disable-xctests-on-swift-package-manager-quick-and-dirty-c69e94d8a2f0
 
 
-    func donttestMembrane() throws {
+    func testMembrane() throws {
 
-        let buffer = 4.0
+    let buffer = 9.0
 
-        let ux = 61.864
-        let uy = 61.453
-        let uz = 96.120
+    let ux = 61.864
+    let uy = 61.453
+    let uz = 96.120
 
-        let origin = Vector([0.0,0.0,0.0])
+    let sizes = [ux, uy, uz]
 
-        let dimensions = [Vector([ux , 0.0 , 0.0]), Vector([0.0 , uy , 0.0]), Vector([0.0 , 0.0 , uz])]
+    let griddelta = 0.15
+    let levelspacing = 0.5
 
-        var griddeltas = [Double]()
+    var griddeltas = [Double]()
+    var levelspacings = [Double]()
 
-        let griddelta = 0.25
+    let membraneaxis = AXES.Z
 
-        for ax in 0..<3 {
-            let num = round((dimensions[ax].coords[ax] - origin.coords[ax])/griddelta)
-            griddeltas.append( (dimensions[ax].coords[ax] - origin.coords[ax])/num ) 
-        }
-        var buffers = [Double]() 
+    for ax in 0..<3 {
+            if ax == membraneaxis.rawValue {
+                griddeltas.append(griddelta)
+                levelspacings.append(levelspacing)
+                continue
+            }
 
-        for ax in 0..<3 {
-            buffers.append( round(buffer/griddeltas[ax])*griddeltas[ax] )
-        }
+            let L = round(sizes[ax]/levelspacing)
+            let lspacing = sizes[ax]/L
+            levelspacings.append(lspacing)
+            let R = round(lspacing/griddelta)
+            let gdelta = lspacing/R 
+            griddeltas.append(gdelta)
+    }
 
-        var unitcell = UnitCell(Vector([0.0,0.0,0.0]), 
-            [Vector([61.864 , 0.0 , 0.0]), Vector([0.0 , 61.453 , 0.0]), Vector([0.0 , 0.0 , 96.120])], 
-            buffers, griddeltas, AXES.Z ) 
+    print("\nfinal level spacings = \(levelspacings[0]) , \(levelspacings[1]) , \(levelspacings[2])")
+    print("\nfinal grid deltas = \(griddeltas[0]) , \(griddeltas[1]) , \(griddeltas[2])")
 
-        // import the mesh we saved in another test, here we just test the decompostion into components 
+    var buffers = [Double]() 
 
-        var surfdata:([Vector],[Vector],[[Int]])?
+    for ax in 0..<3 {
+        buffers.append( round(buffer/griddeltas[ax])*griddeltas[ax] )
+    }
+
+
+    print("\nfinal buffers = \(buffers[0]) , \(buffers[1]) , \(buffers[2])")
+
+    // public init(_ origin:Vector, _ dimensions:[Vector], _ buffer:[Double], _ levelspacings:[Double], _ griddeltas:[Double],  _ membraneaxis:AXES ) 
+    
+    
+    
+    
+    var unitcell = UnitCell( origin:Vector([0.0,0.0,0.0]), 
+        dimensions:[Vector([61.864 , 0.0 , 0.0]), Vector([0.0 , 61.453 , 0.0]), Vector([0.0 , 0.0 , 96.120])], 
+        buffer:buffers, levelspacings:levelspacings, griddeltas:griddeltas, membraneaxis:AXES.Z ) 
+
+    let probeRad = 1.582785
+
+    // import the mesh we saved in another test, here we just test the decompostion into components 
+
+    var surfdata:([Vector],[Vector],[[Int]])?
 
         do {
-            surfdata = try importOBJFile("membrane_proc.obj")
+            surfdata = try importOBJFile("membrane_proc4.obj")
         }
         catch {
             print("exception importing object file ")
@@ -448,114 +474,33 @@ final class SwiftTENSURToolsTests: XCTestCase {
         let FACES = surfdata!.2
 
         print("\nimported surface has \(VERTICES.count) vertices , \(FACES.count) faces")
+
+        print("\nget components using existing DFS algorithm ...")
         
-        // copy this from SwiftTENSUR, identifies subsurface components
+        var time0 = Date().timeIntervalSince1970
+        let componentsDFS = surfaceComponentsDFS( faces:FACES, numvertices:VERTICES.count )
+        var time1 = Date().timeIntervalSince1970
 
-        var adjacency = [Set<Int>]()
-
-        for _ in 0..<VERTICES.count {
-            adjacency.append(Set<Int>())
+        print("\nusing DFS, surface has \(componentsDFS.count) subsurfaces, compute time = \(time1 - time0)")
+        
+        for (cidx,component) in componentsDFS.enumerated() {
+            print("\t\(cidx) : \(component.count) vertices")
         }
 
-        for f in FACES {
-            adjacency[f[0]].insert(f[1])
-            adjacency[f[1]].insert(f[0])
-            adjacency[f[0]].insert(f[2])
-            adjacency[f[2]].insert(f[0])
-            adjacency[f[1]].insert(f[2])
-            adjacency[f[2]].insert(f[1])
+        print("\nget components using new CFS algorithm (single threaded) ...")
+        
+        time0 = Date().timeIntervalSince1970
+        let componentsCFS = surfaceComponentsCFS( faces:FACES, numvertices:VERTICES.count )
+        time1 = Date().timeIntervalSince1970
 
-        }
-        var STACK = [[Int]]()
-
-        var visited = Array(repeating:false, count:VERTICES.count)
-        var component = Array(repeating:-1, count:VERTICES.count)
-
-        var currentComponent = -1
-        var unassigned:Int?
-
-        while true {
-            //find first unassigned vertex
-
-            unassigned = nil
-
-            for iv in 0..<VERTICES.count {
-                if component[iv] < 0 {
-                    unassigned = iv
-                    break
-                }
-            }
-            if unassigned == nil {
-                break
-            }
-
-            currentComponent += 1
-
-            STACK.append([unassigned!,currentComponent])
-
-            while STACK.count > 0 {
-                let data = STACK.popLast()!
-                if !visited[data[0]] {
-                    visited[data[0]] = true 
-                    component[data[0]] = data[1]
-                    for iv in adjacency[data[0]] {
-                        STACK.append([iv,currentComponent])
-                    }
-                }
-            }
-        }
-
-        var components = [[Int]]()
-
-        for c in 0..<(currentComponent+1) {
-            components.append([Int]())
-        }
-
-        for (iv,c) in component.enumerated() {
-            components[c].append(iv)
+        print("\nusing CFS, surface has \(componentsCFS.count) subsurfaces, compute time = \(time1 - time0)")
+        
+        for (cidx,component) in componentsCFS.enumerated() {
+            print("\t\(cidx) : \(component.count) vertices")
         }
 
 
-        print("\nsurface has \(components.count) components")
-
-        var SUBVERTICES = [[Vector]]()
-        var SUBNORMALS = [[Vector]]()
-        var SUBFACES = [[[Int]]]()
-
-        // sort components by decreasing size
-
-        components = components .sorted { $0.count > $1.count }
-
-        for comp in components {
-            let subvertindices = comp .sorted { $0 < $1 }
-            var vertexmap = Array(repeating:-1, count:VERTICES.count)
-
-            _ = subvertindices.enumerated() .map { vertexmap[$0.1] = $0.0 }
-
-            let subvertices = subvertindices .map { VERTICES[$0] }
-            let subnormals = subvertindices .map { NORMALS[$0] }
-
-            let subfaces = FACES .filter { vertexmap[$0[0]] >= 0 } 
-                .map { [vertexmap[$0[0]], vertexmap[$0[1]], vertexmap[$0[2]]] }
-
-            SUBVERTICES.append( subvertices )
-            SUBNORMALS.append( subnormals )
-            SUBFACES.append( subfaces )
-        }
-
-        // merge membrane components
-
-        let membranecomp = membraneSurfaceComponents( SUBVERTICES, SUBNORMALS, SUBFACES, unitcell )
-
-        // component 0 is 'outside', component 1 is part we want 
-
-        let VERTICES0 = membranecomp.0[0]
-        let NORMALS0 = membranecomp.1[0]
-        let FACES0 = membranecomp.2[0]
-        let VERTICES1 = membranecomp.0[1]
-        let NORMALS1 = membranecomp.1[1]
-        let FACES1 = membranecomp.2[1]
-
+        /*
         var url = URL(fileURLWithPath: "./membrane_0.obj")
 
         var outstr = ""
@@ -602,14 +547,14 @@ final class SwiftTENSURToolsTests: XCTestCase {
             print("error writing file \(url)")
         }
 
-
+        */
 
 }
 
 
 
  
-    func testMembrane() throws {
+    func donttestMembrane() throws {
         var coordinates:[Vector]?
         var radii:[Double]?
 
@@ -645,25 +590,53 @@ final class SwiftTENSURToolsTests: XCTestCase {
         // 4841  C1  DPPC  404       6.559  31.299  64.890 
         // HETATM 4881  N41 DPPC  404       6.909  31.549  66.280 
         
-        let buffer = 6.0
+        let buffer = 9.0
 
         let ux = 61.864
         let uy = 61.453
         let uz = 96.120
 
+        let sizes = [ux, uy, uz]
+
+        // I think we need to take care with level spacing and gridspacing - want integer number of levels to fit in 
+        // each unit cell direction, and integer number of grid divisions
+
+        // since level spacing is assumed > grid spacing :
+        // 
+        // For axis X, 
+        // let L = int(ux/levelspacing)
+        // levelspacingX = ux/Double(L)
+        // R = round(levelspacingX/gridspacing)
+        // gridspacingX = levelspacingX/R 
+
         let origin = Vector([0.0,0.0,0.0])
 
         let dimensions = [Vector([ux , 0.0 , 0.0]), Vector([0.0 , uy , 0.0]), Vector([0.0 , 0.0 , uz])]
 
-        var griddeltas = [Double]()
-
         let griddelta = 0.15
+        let levelspacing = 0.5
 
-        for ax in 0..<3 {
-            let num = round((dimensions[ax].coords[ax] - origin.coords[ax])/griddelta)
-            griddeltas.append( (dimensions[ax].coords[ax] - origin.coords[ax])/num ) 
+        var griddeltas = [Double]()
+        var levelspacings = [Double]()
+
+        let membraneaxis = AXES.Z
+
+    for ax in 0..<3 {
+            if ax == membraneaxis.rawValue {
+                griddeltas.append(griddelta)
+                levelspacings.append(levelspacing)
+                continue
+            }
+
+            let L = round(sizes[ax]/levelspacing)
+            let lspacing = sizes[ax]/L
+            levelspacings.append(lspacing)
+            let R = round(lspacing/griddelta)
+            let gdelta = lspacing/R 
+            griddeltas.append(gdelta)
         }
 
+        print("\nfinal level spacings = \(levelspacings[0]) , \(levelspacings[1]) , \(levelspacings[2])")
         print("\nfinal grid deltas = \(griddeltas[0]) , \(griddeltas[1]) , \(griddeltas[2])")
 
         var buffers = [Double]() 
@@ -675,9 +648,14 @@ final class SwiftTENSURToolsTests: XCTestCase {
 
         print("\nfinal buffers = \(buffers[0]) , \(buffers[1]) , \(buffers[2])")
 
-        var unitcell = UnitCell(Vector([0.0,0.0,0.0]), 
-            [Vector([61.864 , 0.0 , 0.0]), Vector([0.0 , 61.453 , 0.0]), Vector([0.0 , 0.0 , 96.120])], 
-            buffers, griddeltas, AXES.Z ) 
+        // public init(_ origin:Vector, _ dimensions:[Vector], _ buffer:[Double], _ levelspacings:[Double], _ griddeltas:[Double],  _ membraneaxis:AXES ) 
+       
+       
+       
+       
+        var unitcell = UnitCell( origin:Vector([0.0,0.0,0.0]), 
+            dimensions:[Vector([61.864 , 0.0 , 0.0]), Vector([0.0 , 61.453 , 0.0]), Vector([0.0 , 0.0 , 96.120])], 
+            buffer:buffers, levelspacings:levelspacings, griddeltas:griddeltas, membraneaxis:AXES.Z ) 
 
         let probeRad = 1.582785
 
@@ -799,8 +777,10 @@ final class SwiftTENSURToolsTests: XCTestCase {
         usecoordinates = packedcoords + imgdata.0
         useradii = useradii + imgradii
 
+        
+
         var surfdata = generateSurfaceProbes( coordinates:usecoordinates, radii:useradii, probeRadius:probeRad, 
-                    levelspacing:0.5, minoverlap:0.5, numthreads:10, 
+                    levelspacing:levelspacing, minoverlap:0.5, numthreads:10, 
                     skipCCWContours:false, unitcell:unitcell, debugAXES:nil)
 
         var probes = surfdata.0 
@@ -851,9 +831,11 @@ final class SwiftTENSURToolsTests: XCTestCase {
 
         var tridata:([Vector],[Vector],[[Int]])?
 
+        // set isolevel slightly less
+
         do {
             tridata = try generateTriangulation( probes:useprobes, probeRadius:probeRad, gridspacing:0.25, 
-            densityDelta:0.15, densityEpsilon:0.0, isoLevel:1.0, numthreads:10, mingridchunk:20, unitcell:unitcell ) 
+            densityDelta:0.15,  isoLevel:1.0-0.01, numthreads:10, mingridchunk:20, unitcell:unitcell ) 
         }
         catch {
             print("triangulation code failed !")
@@ -866,7 +848,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
     var NORMALS = tridata!.1
     var FACES = tridata!.2
 
-    var url = URL(fileURLWithPath: "./membrane_init3.obj")
+    var url = URL(fileURLWithPath: "./membrane_init4.obj")
 
     var outstr = ""
 
@@ -895,7 +877,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
     NORMALS = procmembranetri.1
     FACES = procmembranetri.2
 
-    url = URL(fileURLWithPath: "./membrane_proc3.obj")
+    url = URL(fileURLWithPath: "./membrane_proc4.obj")
 
     outstr = ""
 
@@ -1372,6 +1354,7 @@ final class SwiftTENSURToolsTests: XCTestCase {
 
         
        */ 
+       
 
     }
 
