@@ -147,8 +147,8 @@ public class UnitCell {
         self.inverseindices = inverseindices
     }
 
-    public func inside( _ coords:[Vector], tol:Double=0.0001 ) -> Bool {
-        let cellc = self.cellcoords( coords )
+    public func inside( _ coord:Vector, tol:Double=0.0001 ) -> Bool {
+        let cellc = self.cellcoords( coord )
 
         for ax in 0..<3 {
             if cellc[ax] < -tol || cellc[ax] > 1.0 + tol {
@@ -246,7 +246,7 @@ public func processMembraneProbes( _ probes:[Probe], _ proberad:Double, _ unitce
     */
 
     // keeping three slots for backward compatibility, last two are currently empty 
-    
+
     return (keepprobes, bufferPROBES, totPROBES)
 
 
@@ -255,7 +255,7 @@ public func processMembraneProbes( _ probes:[Probe], _ proberad:Double, _ unitce
 
 
 public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int]], PROBES:[Probe], unitcell:UnitCell  ) 
-        -> (vertices:[Vector], normals:[Vector], faces:[[Int]], surfacetype:SurfaceType) {
+        -> (vertices:[Vector], normals:[Vector], faces:[[Int]], surfacetype:SurfaceType)? {
 
 
     // BEFORE doing the cut, determine connected components; 
@@ -308,7 +308,7 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
         return nil 
     }
 
-    var reentrantComponents = [] 
+    var reentrantComponents = [(vertices:[Vector], normals:[Vector], faces:[[Int]], surfacetype:SurfaceType)]()
 
     for cidx in 0..<4 {
         if ![topPCIdx!, bottomPCIdx!].contains(cidx) {
@@ -317,8 +317,8 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
     }
 
     for order in [(0,1),(1,0)] {
-        let top = reentrantComponents[order[0]]
-        let bottom = reentrantComponents[order[1]]
+        let top = reentrantComponents[order.0]
+        let bottom = reentrantComponents[order.1]
         if minMaxCompZ[top].min > minMaxCompZ[bottom].max {
             topReentIdx = top
             bottomReentIdx = bottom
@@ -362,7 +362,7 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
 
     // renumber to return 
 
-    let exportvertexindices = 0..<VERTICES.count .filter { keepvertices[$0] }
+    let exportvertexindices = (0..<VERTICES.count) .filter { keepvertices[$0] }
 
     var oldToNewIndex = Array(repeating:-1, count:VERTICES.count )
 

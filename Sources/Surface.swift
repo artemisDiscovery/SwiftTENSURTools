@@ -194,7 +194,7 @@ public func surfaceComponentsCFS( faces:[[Int]], numvertices:Int ) -> [[Int]] {
 
 // for identifying 'caps' that sew to main membrane reentrant surfaces 
 
-public func edgeComponentsCFS( boundaryedges:[Edge] ) -> [Edge] {
+public func edgeComponentsCFS( boundaryedges:[Edge] ) -> [Int] {
 
     print("\nDEPRECATED : function edgeComponentsCFS : not tested")
     // only have boundary edges - translate vertex indices 
@@ -321,7 +321,7 @@ public func areaForFace( vertices:[Vector], face:[Int] ) -> (normal:Vector,area:
         normal = Vector([0.0,0.0,0.0])
     }
     else {
-        normal = normal.scaled(1.0/len)
+        normal = normal.scale(1.0/len)
     }
 
     return (normal:normal, area:area )
@@ -410,7 +410,7 @@ public func identifySurfaceType( vertices:[Vector], normals:[Vector], boundaryve
 
     let maxCoord = vertices[maxidx].coords[axis]
 
-    var direction = Vector[(0.0,0.0,0.0)]
+    var direction = Vector([0.0,0.0,0.0])
 
     direction[axis] = 1.0 
 
@@ -510,7 +510,7 @@ public func isInterior( smaller:(vertices:[Vector],normals:[Vector],faces:[[Int]
             
             let facebox = boundingBox( points:points )
 
-            if boundingBoxInside( pointbox, facebox ) {
+            if boundingBoxInside( smaller:pointbox, larger:facebox ) {
                 candidateFaces.append(fidx)
             }
 
@@ -643,7 +643,7 @@ public func processNonMembraneTri( _ VERTICES:[Vector], _ NORMALS:[Vector],  _ F
 
                 if isInterior( smaller:probecent, larger:reent ) {
                     cavities.append(pidx)
-                    smaller.surfacetype = SurfaceType.reentrantCavity
+                    probecenteredCOMPONENTS[pidx].surfacetype = SurfaceType.reentrantCavity
                 }
 
             }

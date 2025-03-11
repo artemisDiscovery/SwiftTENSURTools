@@ -1437,7 +1437,7 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double,
 
             let center = probe.center
 
-            let gcenter =  Int((center.coords[$0] - limits[$0][0])/griddeltas[$0]) 
+            let gcenter =  (0..<3) Int((center.coords[$0] - limits[$0][0])/griddeltas[$0]) 
 
             let gmin = (0..<3) .map { max(gcenter[$0] - gradii[$0], 0) }
             let gmax = (0..<3) .map { min(gcenter[$0] + gradii[$0], gridShape[$0]-1) }
