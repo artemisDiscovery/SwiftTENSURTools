@@ -1748,7 +1748,7 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
                         
                         let density =  densityForProbes( probes:probesForThread[tidx], radius:probeRadius, delta:densityDelta, epsilon:densityEpsilon,
                             griddeltas:griddeltas, limits:spans, gridShape:gridShape, gridStrides:gridStrides,
-                            DMAX:DMAP, clamp:densityClamp )
+                            DMAX:DMAX, clamp:densityClamp )
                         
                         
                         blocksQueue.sync {
