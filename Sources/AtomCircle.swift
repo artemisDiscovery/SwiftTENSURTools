@@ -1413,8 +1413,8 @@ public func indexFromIndices( _ indices:[Int],  shape:[Int], strides:[Int] )  ->
 // This returns for argument probe position a list of density values and 
 // offsets in the original grid storage
 
-public func densityForProbes( probes:[Probe], radius:Double, delta:Double,  
-    griddeltas:[Double], limits:[[Double]], gridShape:[Int], gridStrides:[Int] ) -> [Double] {
+public func densityForProbes( probes:[Probe], radius:Double, delta:Double, epsilon:Double, 
+    griddeltas:[Double], limits:[[Double]], gridShape:[Int], gridStrides:[Int], DMAX:Double=2.0, clamp:Bool=true ) -> [Double] {
 
     
         var linearDensity = Array( repeating:0.0, count:gridShape[0]*gridShape[1]*gridShape[2] )
@@ -1428,10 +1428,9 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double,
         //     goes to zero in range proberad -> proberad+delta
         //
 
-        let DMAX = 2.0
 
-        let A = -DMAX / (2.0*delta)
-        let B = DMAX*(radius + delta)/(2.0*delta)
+        let A = -DMAX / (delta + epsilon)
+        let B = DMAX*(radius + epsilon)/(delta + epsilon)
 
         for probe in probes {
 
@@ -1489,17 +1488,23 @@ public func densityForProbes( probes:[Probe], radius:Double, delta:Double,
                 
                 if d < radius - delta {
                     linearDensity[idx] += DMAX
-                    if linearDensity[idx] >= DMAX {
-                        linearDensity[idx] = DMAX
-                        linearMask[idx] = false
+                    if clamp {
+                        if linearDensity[idx] >= DMAX {
+                            linearDensity[idx] = DMAX
+                            linearMask[idx] = false
+                        }
                     }
+                    
                 }
                 else if d <= radius + delta {
                     linearDensity[idx] += A*d + B
-                    if linearDensity[idx] >= DMAX {
-                        linearDensity[idx] = DMAX
-                        linearMask[idx] = false
+                    if clamp {
+                        if linearDensity[idx] >= DMAX {
+                            linearDensity[idx] = DMAX
+                            linearMask[idx] = false
+                        }
                     }
+                    
                 }
             }
 
@@ -1615,8 +1620,9 @@ public func runMarchingCubes( density:Matrix<Double>, limits:[[Double]], griddel
 }
 
 public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspacing:Double, 
-        densityDelta:Double,  isoLevel:Double, numthreads:Int, axis:AXES=AXES.Z, mingridchunk:Int=100, 
-        unitcell:UnitCell?=nil, DMAX:Double=2.0) 
+        densityDelta:Double,  densityEpsilon:Double, isoLevel:Double, 
+        numthreads:Int, axis:AXES=AXES.Z, mingridchunk:Int=100, 
+        unitcell:UnitCell?=nil, DMAX:Double=2.0, densityClamp:Bool=true ) 
             throws -> ([Vector], [Vector], [[Int]]) {
            // -> throws ([[Double]], [[Int]])  {
 
@@ -1740,8 +1746,9 @@ public func generateTriangulation( probes:[Probe], probeRadius:Double, gridspaci
                         let time0 = Date().timeIntervalSince1970
 
                         
-                        let density =  densityForProbes( probes:probesForThread[tidx], radius:probeRadius, delta:densityDelta, 
-                            griddeltas:griddeltas, limits:spans, gridShape:gridShape, gridStrides:gridStrides )
+                        let density =  densityForProbes( probes:probesForThread[tidx], radius:probeRadius, delta:densityDelta, epsilon:densityEpsilon,
+                            griddeltas:griddeltas, limits:spans, gridShape:gridShape, gridStrides:gridStrides,
+                            DMAX:DMAP, clamp:densityClamp )
                         
                         
                         blocksQueue.sync {
