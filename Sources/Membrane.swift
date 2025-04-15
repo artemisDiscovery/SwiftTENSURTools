@@ -349,7 +349,7 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
 
     let insidevertices = VERTICES .map { unitcell.inside( $0 ) }
 
-    let keepvertices = zip(insidevertices, membranevertices) .map { $0 && $1 }
+    var keepvertices = zip(insidevertices, membranevertices) .map { $0 && $1 }
 
     var membranefaces = Array( repeating:true, count:FACES.count )
 
