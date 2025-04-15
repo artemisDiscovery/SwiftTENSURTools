@@ -360,6 +360,17 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
 
     }
 
+    var keepcoords = VERTICES.enumerated() .filter { keepvertices[$0.offset] } .map { $0.element }
+    var minx = (keepcoords .map { $0.coords[0] }).min()!
+    var miny = (keepcoords .map { $0.coords[1] }).min()!
+    var minz = (keepcoords .map { $0.coords[2] }).min()!
+    var maxx = (keepcoords .map { $0.coords[0] }).max()!
+    var maxy = (keepcoords .map { $0.coords[1] }).max()!
+    var maxz = (keepcoords .map { $0.coords[2] }).max()!
+     
+    print("\nafter initial limit application, minimum x, y, z coords = \(minx) , \(miny) , \(minz)")
+    print("\nafter initial limit application, maximum x, y, z coords = \(maxx) , \(maxy) , \(maxz)")
+
     // if faces are eliminated, don't leave stranded vertices 
 
     var stranded = Array( repeating:true, count:VERTICES.count )
@@ -369,6 +380,17 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
     // update keep vertices
 
     keepvertices = zip(keepvertices, stranded) .map { $0 && !$1 } 
+
+    keepcoords = VERTICES.enumerated() .filter { keepvertices[$0.offset] } .map { $0.element }
+    minx = (keepcoords .map { $0.coords[0] }).min()!
+    miny = (keepcoords .map { $0.coords[1] }).min()!
+    minz = (keepcoords .map { $0.coords[2] }).min()!
+    maxx = (keepcoords .map { $0.coords[0] }).max()!
+    maxy = (keepcoords .map { $0.coords[1] }).max()!
+    maxz = (keepcoords .map { $0.coords[2] }).max()!
+
+    print("\nafter final limit application, minimum x, y, z coords = \(minx) , \(miny) , \(minz)")
+    print("\nafter final limit application, maximum x, y, z coords = \(maxx) , \(maxy) , \(maxz)")
 
     let exportvertexindices = (0..<VERTICES.count) .filter { keepvertices[$0] }
 
