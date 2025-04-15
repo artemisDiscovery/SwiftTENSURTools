@@ -147,7 +147,7 @@ public class UnitCell {
         self.inverseindices = inverseindices
     }
 
-    public func inside( _ coord:Vector, tol:Double=0.0001 ) -> Bool {
+    public func inside( _ coord:Vector, tol:Double=0.0 ) -> Bool {
         let cellc = self.cellcoords( coord )
 
         for ax in 0..<3 {
@@ -360,7 +360,15 @@ public func processMembraneTri( VERTICES:[Vector], NORMALS:[Vector], FACES:[[Int
 
     }
 
-    // renumber to return 
+    // if faces are eliminated, don't leave stranded vertices 
+
+    var stranded = Array( repeating:true, count:VERTICES.count )
+
+    _ = membranefaces.enumerated() .filter { $0.element } .map { FACES[$0.offset] .map { stranded[$0] = false }  }
+    
+    // update keep vertices
+
+    keepvertices = zip(keepvertices, stranded) .map { $0 && !$1 } 
 
     let exportvertexindices = (0..<VERTICES.count) .filter { keepvertices[$0] }
 
